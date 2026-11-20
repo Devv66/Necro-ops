@@ -1,0 +1,14 @@
+{
+  "name": "pre-purge-pbt-safety-gate",
+  "runtimeStatus": "illustrative-unverified",
+  "trigger": "PreResourcePurge",
+  "matcher": "cloud-resources/**/*.json",
+  "description": "Illustrative Kiro-oriented hook definition. The local simulator does not load this file or execute a Kiro hook runtime.",
+  "action": {
+    "type": "shellCommand",
+    "command": "npm run test:gate"
+  },
+  "confirmGate": true,
+  "abortOnFailure": true,
+  "verificationNote": "The command is independently runnable and exits nonzero on a failed local gate. Kiro hook execution requires separate evidence."
+}
