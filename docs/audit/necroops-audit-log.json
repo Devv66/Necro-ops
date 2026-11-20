@@ -1,0 +1,28 @@
+{
+  "artifact": "NecroOps audited test-run record",
+  "schemaVersion": 1,
+  "scope": "Source inventory and automated test verification for the public Kiroween 2026 submission.",
+  "sourceCommitTested": "27bbca9ae2a77affa2f8d0ffe4016c21c13bcf31",
+  "sourceFileSha256": {
+    ".kiro/agents/exorcist-agent.json": "af76c38102902960e07aca963792314a79c2dfc7fe8d52aa36d442bee9d75a4c",
+    ".kiro/agents/necromancer-agent.json": "280e72094b87442fcce3a9ff00c76e1413792b491f0490bbc6f752f73996ed7a",
+    ".kiro/agents/reaper-agent.json": "c91604cd58a1f3600eafb55697babfb62faeee48750c5ed8bb322825dfaadd75",
+    ".kiro/hooks/post-resurrection-hook.json": "a10cd7329629b04b916b8042254a2407825f550acb826e7045411a1538513b93",
+    ".kiro/hooks/pre-purge-hook.json": "c78276c34a6483dcd4a04597aa0fd8229f2929cf43f5917cc0dcb3e5acc7a98c",
+    ".kiro/powers/aws-exorcist-power.json": "1bc7e895c9fd24ad61cd2e372dd3a9607f495cf9db384aed6f99df30759ae296",
+    ".kiro/specs/necroops-spec.json": "a0345ca36bd6d588b8a87ae31e975dedeeb5ae1c2bf468cebd4d91ea48ca71b4",
+    ".kiro/steering/agent-guidelines.md": "365e4b018ab684b01d7785a772e73919ba7a9b5230d293688426863eddab9ed0",
+    "package.json": "5c9db563d301f670efb0f1baaf2c9a618bc45b8164255117fc4550533b241c13",
+    "src/engine.js": "720bd8a0a80d98cb2db784214bb76ca750102c7416c9b0bfe147ad7cf59a0c48",
+    "src/server.js": "abd359079d8597a6c9846346a6c7447baab50909df9c13156e01461298a0a1bf",
+    "tests/necroops.test.mjs": "75233733a953c685b345fc24381ae25b0b7d9f59faa7115a092424bb2e9f848c"
+  },
+  "testCommand": "npm test",
+  "testResult": {
+    "failures": 0,
+    "nestedProjectChecksPassed": 21,
+    "note": "The top-level Node test wrapper is counted in the TAP summary in addition to the 21 named project checks.",
+    "tapSummaryTestsPassed": 22
+  },
+  "verification": "Recalculate this file digest with: sha256sum docs/audit/necroops-audit-log.json"
+}

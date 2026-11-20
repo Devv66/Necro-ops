@@ -1,0 +1,277 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import http from 'node:http';
+import path from 'node:path';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import {
+  calculateLegacyFixturePayment,
+  calculateModernFixturePayment,
+  NecroOpsEngine,
+  verifyFixtureReceipt,
+  ZOMBIE_CATALOG
+} from '../src/engine.js';
+import { createServer } from '../src/server.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.join(__dirname, '..');
+
+function startIsolatedServer() {
+  const server = createServer({ engine: new NecroOpsEngine() });
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      resolve({
+        server,
+        baseUrl: `http://127.0.0.1:${address.port}`
+      });
+    });
+  });
+}
+
+async function stopServer(server) {
+  await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+}
+
+async function request(baseUrl, pathname, options = {}) {
+  const response = await fetch(`${baseUrl}${pathname}`, options);
+  const text = await response.text();
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = text;
+  }
+  return { response, body };
+}
+
+test('NecroOps local fixture suite', async (t) => {
+  let engine;
+
+  t.beforeEach(() => {
+    engine = new NecroOpsEngine();
+  });
+
+  await t.test('fixture catalog has five local scenario records', () => {
+    assert.equal(ZOMBIE_CATALOG.length, 5);
+    const scan = engine.scanCloudPerimeter();
+    assert.equal(scan.executionMode, 'local-demo-fixture');
+    assert.equal(scan.activeZombieCount, 5);
+    assert.equal(scan.exorcisedCount, 0);
+    assert.equal(scan.totalMonthlyWasteUSD, 1050);
+    assert.equal(scan.annualWasteProjectionUSD, 12600);
+    assert.equal(scan.hauntedRiskIndex, 88);
+    assert.equal(scan.status, 'CRITICAL_HAUNTED');
+  });
+
+  await t.test('scan results are stable snapshots, not live references', () => {
+    const before = engine.scanCloudPerimeter();
+    engine.exorciseZombieResource('i-0f948a913bc89a712');
+    const after = engine.scanCloudPerimeter();
+
+    assert.equal(before.activeZombieCount, 5);
+    assert.equal(before.resources.find(resource => resource.id === 'i-0f948a913bc89a712').status, 'HAUNTED_ZOMBIE');
+    assert.equal(after.activeZombieCount, 4);
+    assert.equal(after.resources.find(resource => resource.id === 'i-0f948a913bc89a712').status, 'EXORCISED');
+  });
+
+  await t.test('cleanup candidates are explicitly ranked by risk then modeled cost', () => {
+    const candidates = engine.getCleanupCandidates();
+    assert.equal(candidates[0].id, 'i-0f948a913bc89a712');
+    assert.equal(candidates[1].id, 'rds-cluster-legacy-analytics-store');
+    assert.equal(candidates[2].id, 'vol-084920491823abf10');
+  });
+
+  await t.test('resurrection examples are fixture-specific and not described as deployed transformations', () => {
+    const paymentExample = engine.resurrectLegacyCode('i-0f948a913bc89a712');
+    const webhookExample = engine.resurrectLegacyCode('arn:aws:lambda:us-east-1:718293019283:function:billing-webhook-v1');
+
+    assert.equal(paymentExample.exampleLanguage, 'JavaScript');
+    assert.equal(paymentExample.deploymentStatus, 'not-deployed');
+    assert.match(paymentExample.modernizedExample, /feeCents/);
+    assert.match(webhookExample.modernizedExample, /Missing token/);
+    assert.match(webhookExample.modernizedExample, /transactionId/);
+    assert.notEqual(paymentExample.modernizedExample, webhookExample.modernizedExample);
+  });
+
+  await t.test('resurrection rejects fixture resources without code and unknown IDs', () => {
+    assert.throws(() => engine.resurrectLegacyCode('vol-084920491823abf10'), { code: 'NO_LEGACY_CODE' });
+    assert.throws(() => engine.resurrectLegacyCode('not-real'), { code: 'RESOURCE_NOT_FOUND' });
+  });
+
+  await t.test('cent-based fixture arithmetic preserves money and matches both local examples', () => {
+    const amounts = [32, 101, 5025, 10000, 99999, 1500050];
+    for (const amountCents of amounts) {
+      const legacy = calculateLegacyFixturePayment(amountCents);
+      const modern = calculateModernFixturePayment(amountCents);
+      assert.deepEqual(legacy, modern);
+      assert.equal(modern.netCents + modern.feeCents, amountCents);
+      assert.ok(modern.netCents >= 0);
+    }
+  });
+
+  await t.test('financial invariant rejects invalid, fractional-cent, and below-fee values', () => {
+    for (const amount of [-10, 0, Number.NaN, Number.POSITIVE_INFINITY, 0.01, 0.31, 10.001]) {
+      assert.equal(engine.verifyPropertyBasedInvariants({ amount }).valid, false);
+    }
+    const valid = engine.verifyPropertyBasedInvariants({ amount: 0.32 });
+    assert.equal(valid.valid, true);
+    assert.equal(valid.inputAmountCents, 32);
+    assert.equal(valid.sumCheckCents, 32);
+    assert.equal(valid.legacyAndExampleEquivalent, true);
+    assert.equal(valid.moneyConserved, true);
+  });
+
+  await t.test('property gate is deterministic for a fixed seed and trial count', () => {
+    const first = engine.runPropertyBasedTests(25, 123456);
+    const second = engine.runPropertyBasedTests(25, 123456);
+    assert.deepEqual(first, second);
+    assert.equal(first.passed, true);
+    assert.equal(first.trialsPassed, 25);
+    assert.throws(() => engine.runPropertyBasedTests(0), { code: 'INVALID_TRIAL_COUNT' });
+  });
+
+  await t.test('failed gate leaves local resource state and receipt log unchanged', () => {
+    const before = engine.scanCloudPerimeter();
+    engine.runPropertyBasedTests = () => ({ passed: false, failures: [{ trial: 1 }], trialsRequested: 100, trialsPassed: 99 });
+
+    assert.throws(
+      () => engine.exorciseZombieResource('i-0f948a913bc89a712'),
+      { code: 'SAFETY_GATE_FAILED' }
+    );
+
+    const after = engine.scanCloudPerimeter();
+    assert.equal(after.activeZombieCount, before.activeZombieCount);
+    assert.equal(after.exorcisedCount, before.exorcisedCount);
+    assert.equal(after.resources.find(resource => resource.id === 'i-0f948a913bc89a712').status, 'HAUNTED_ZOMBIE');
+  });
+
+  await t.test('cleanup returns a locally verifiable unsigned fixture receipt', () => {
+    const receipt = engine.exorciseZombieResource('i-0f948a913bc89a712', 'Test local receipt');
+    assert.match(receipt.receiptId, /^LOCAL-FIXTURE-RECEIPT-/);
+    assert.equal(receipt.executionMode, 'local-demo-fixture');
+    assert.equal(receipt.propertyBasedSafetyGate.trialsRequested, 100);
+    assert.equal(receipt.propertyBasedSafetyGate.trialsPassed, 100);
+    assert.equal(verifyFixtureReceipt(receipt), true);
+
+    const tampered = structuredClone(receipt);
+    tampered.modeledMonthlyChangeUSD = 999999;
+    assert.equal(verifyFixtureReceipt(tampered), false);
+  });
+
+  await t.test('cleanup is idempotent within one process', () => {
+    engine.exorciseZombieResource('vol-084920491823abf10');
+    const repeat = engine.exorciseZombieResource('vol-084920491823abf10');
+    assert.equal(repeat.status, 'ALREADY_EXORCISED');
+    assert.equal(repeat.executionMode, 'local-demo-fixture');
+  });
+
+  await t.test('orchestration requires an explicit fixture target and returns API-backed state', () => {
+    assert.throws(() => engine.runKiroCrewOrchestration(), { code: 'RESOURCE_ID_REQUIRED' });
+    const workflow = engine.runKiroCrewOrchestration('i-0f948a913bc89a712');
+    assert.equal(workflow.executionMode, 'local-demo-fixture');
+    assert.equal(workflow.actionsTaken.length, 3);
+    assert.equal(workflow.updatedScan.activeZombieCount, 4);
+    assert.equal(workflow.updatedScan.hauntedRiskIndex, 65);
+    assert.equal(workflow.localFixtureReceipt.propertyBasedSafetyGate.trialsPassed, 100);
+  });
+
+  await t.test('all required Kiro-oriented assets are tracked at the correct root paths', () => {
+    const requiredPaths = [
+      '.kiro/agents/reaper-agent.json',
+      '.kiro/agents/necromancer-agent.json',
+      '.kiro/agents/exorcist-agent.json',
+      '.kiro/hooks/pre-purge-hook.json',
+      '.kiro/hooks/post-resurrection-hook.json',
+      '.kiro/powers/aws-exorcist-power.json',
+      '.kiro/specs/necroops-spec.json',
+      '.kiro/steering/agent-guidelines.md',
+      '.gitignore'
+    ];
+    for (const relativePath of requiredPaths) {
+      assert.equal(fs.existsSync(path.join(projectRoot, relativePath)), true, `${relativePath} must exist`);
+    }
+    assert.equal(fs.existsSync(path.join(projectRoot, '.kiro/agents/hooks/pre-purge-hook.json')), false);
+  });
+
+  await t.test('Kiro asset files state their illustrative and unverified boundary', () => {
+    const preHook = JSON.parse(fs.readFileSync(path.join(projectRoot, '.kiro/hooks/pre-purge-hook.json'), 'utf8'));
+    const postHook = JSON.parse(fs.readFileSync(path.join(projectRoot, '.kiro/hooks/post-resurrection-hook.json'), 'utf8'));
+    const spec = JSON.parse(fs.readFileSync(path.join(projectRoot, '.kiro/specs/necroops-spec.json'), 'utf8'));
+    const power = JSON.parse(fs.readFileSync(path.join(projectRoot, '.kiro/powers/aws-exorcist-power.json'), 'utf8'));
+    const steering = fs.readFileSync(path.join(projectRoot, '.kiro/steering/agent-guidelines.md'), 'utf8');
+
+    assert.equal(preHook.runtimeStatus, 'illustrative-unverified');
+    assert.equal(preHook.action.command, 'npm run test:gate');
+    assert.equal(postHook.runtimeStatus, 'illustrative-unverified');
+    assert.equal(spec.runtimeStatus, 'local-fixture-prototype');
+    assert.equal(power.runtimeStatus, 'illustrative-unattached-manifest');
+    assert.match(steering, /not automatically injected/i);
+  });
+
+  await t.test('dashboard source requests same-origin API state rather than using timer-only success', () => {
+    const dashboard = fs.readFileSync(path.join(projectRoot, 'public/index.html'), 'utf8');
+    assert.match(dashboard, /fetch\('\/api\/status'\)/);
+    assert.match(dashboard, /fetch\('\/api\/kiro-crew\/execute'/);
+    assert.doesNotMatch(dashboard, /setTimeout\(/);
+    assert.match(dashboard, /NO AWS ACCOUNT CONNECTED/);
+  });
+
+  await t.test('HTTP server provides isolated, explicit, same-origin local-fixture API behavior', async () => {
+    const { server, baseUrl } = await startIsolatedServer();
+    try {
+      const status = await request(baseUrl, '/api/status');
+      assert.equal(status.response.status, 200);
+      assert.equal(status.body.executionMode, 'local-demo-fixtures-no-aws-account');
+      assert.equal(status.response.headers.get('access-control-allow-origin'), null);
+      assert.equal(status.body.telemetry.suggestedCleanupFixtureId, 'i-0f948a913bc89a712');
+
+      const missingRoute = await request(baseUrl, '/api/missing');
+      assert.equal(missingRoute.response.status, 404);
+      assert.equal(missingRoute.body.code, 'API_ROUTE_NOT_FOUND');
+
+      const missingTarget = await request(baseUrl, '/api/kiro-crew/execute', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}'
+      });
+      assert.equal(missingTarget.response.status, 400);
+      assert.equal(missingTarget.body.code, 'RESOURCE_ID_REQUIRED');
+
+      const wrongContentType = await request(baseUrl, '/api/exorcise', {
+        method: 'POST',
+        body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+      });
+      assert.equal(wrongContentType.response.status, 415);
+
+      const malformed = await request(baseUrl, '/api/exorcise', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{bad json'
+      });
+      assert.equal(malformed.response.status, 400);
+      assert.equal(malformed.body.code, 'MALFORMED_JSON');
+
+      const tooLarge = await request(baseUrl, '/api/exorcise', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712', reason: 'x'.repeat(40_000) })
+      });
+      assert.equal(tooLarge.response.status, 413);
+      assert.equal(tooLarge.body.code, 'BODY_TOO_LARGE');
+
+      const workflow = await request(baseUrl, '/api/kiro-crew/execute', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+      });
+      assert.equal(workflow.response.status, 200);
+      assert.equal(workflow.body.orchestration.updatedScan.activeZombieCount, 4);
+      assert.equal(workflow.body.orchestration.localFixtureReceipt.propertyBasedSafetyGate.trialsPassed, 100);
+    } finally {
+      await stopServer(server);
+    }
+  });
+});

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NecroOps — Local Fixture Safety Prototype</title>
+  <style>
+    :root {
+      --bg: #070a12; --surface: #0d121f; --surface-2: #121828; --line: #253046;
+      --text: #f8fafc; --muted: #94a3b8; --cyan: #00f5d4; --purple: #9d4edd;
+      --red: #ff0054; --yellow: #ffbe0b; --green: #24d18b; --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; background: var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:18px clamp(18px,4vw,48px); background:#0c101d; border-bottom:1px solid #1e2638; }
+    .brand { display:flex; align-items:center; gap:13px; }
+    .mark { width:38px; height:38px; display:grid; place-items:center; background:rgba(0,245,212,.13); border:1px solid var(--cyan); border-radius:10px; color:var(--cyan); font-size:21px; }
+    h1 { margin:0; font-size:21px; letter-spacing:.4px; } .subtitle { margin-top:3px; color:var(--muted); font-size:12px; }
+    .badges { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+    .badge { padding:5px 9px; border:1px solid #3b3158; color:#d6b7ff; background:rgba(157,78,221,.13); border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.7px; text-transform:uppercase; }
+    .badge.safe { border-color:#176b61; background:rgba(0,245,212,.09); color:var(--cyan); }
+    .notice { max-width:1220px; margin:22px auto 0; padding:12px 16px; border-radius:9px; border:1px solid #9d6d13; background:#211a0a; color:#ffcf70; font-size:13px; font-weight:700; }
+    main { max-width:1220px; margin:22px auto; padding:0 0 26px; display:grid; grid-template-columns:minmax(330px, .78fr) minmax(400px,1.22fr); gap:20px; }
+    .card { background:var(--surface); border:1px solid #1e2638; border-radius:12px; padding:22px; }
+    .eyebrow { color:var(--muted); letter-spacing:1px; font-size:11px; font-weight:800; } h2 { margin:5px 0 4px; font-size:18px; } .hint { margin:0; color:#718096; font-size:12px; line-height:1.45; }
+    .gauge { width:226px; height:226px; margin:21px auto; position:relative; display:grid; place-items:center; }
+    .gauge svg { position:absolute; width:100%; height:100%; transform:rotate(-90deg); }
+    .gauge circle { fill:none; stroke-width:16; } .gauge .track { stroke:#1e2638; } .gauge .value { stroke:var(--red); stroke-dasharray:565; stroke-dashoffset:68; transition:stroke-dashoffset .55s ease,stroke .35s ease; }
+    .score { text-align:center; } #riskScoreText { font-size:53px; line-height:1; font-weight:900; color:var(--red); } .score small { display:block; margin-top:7px; color:var(--muted); font-size:10px; font-weight:800; letter-spacing:1px; }
+    #statusBadge { display:table; margin:-10px auto 18px; padding:7px 11px; border:1px solid var(--red); border-radius:6px; background:rgba(255,0,84,.12); color:var(--red); font-size:11px; font-weight:800; letter-spacing:.45px; text-align:center; }
+    .metrics { display:grid; grid-template-columns:1fr 1fr; gap:10px; } .metric { padding:14px 11px; border:1px solid var(--line); border-radius:8px; background:var(--surface-2); text-align:center; } .metric strong { display:block; font-size:23px; color:var(--red); } .metric span { display:block; margin-top:3px; color:var(--muted); font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; }
+    button { width:100%; margin-top:17px; padding:13px 15px; border:0; border-radius:8px; background:linear-gradient(135deg,var(--purple),#7223b1); color:white; cursor:pointer; font-size:13px; font-weight:800; letter-spacing:.35px; transition:transform .16s ease, filter .16s ease; } button:hover:not(:disabled) { transform:translateY(-1px); filter:brightness(1.08); } button:disabled { opacity:.63; cursor:not-allowed; }
+    .feed { margin-top:20px; padding:12px; min-height:132px; max-height:222px; overflow:auto; border:1px solid #1a2233; border-radius:7px; background:#090c16; font:11px/1.55 var(--mono); } .line { display:flex; gap:8px; margin-bottom:7px; } .tag { flex:0 0 auto; color:var(--purple); font-weight:800; } .text { color:var(--muted); }
+    .ledger { display:flex; flex-direction:column; gap:10px; margin-top:19px; } .resource { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 15px; border:1px solid #202b3f; border-left:4px solid var(--red); border-radius:8px; background:#101626; } .resource.exorcised { border-left-color:var(--cyan); background:rgba(0,245,212,.045); } .resource h3 { margin:0 0 4px; font-size:14px; } .resource p { margin:0; color:#718096; font:11px/1.45 var(--mono); overflow-wrap:anywhere; } .type { display:inline-block; margin-left:7px; padding:2px 6px; border-radius:4px; background:#1a2233; color:#aab7ca; font-size:9px; vertical-align:2px; } .amount { flex:0 0 auto; text-align:right; } .amount strong { display:block; color:var(--red); font-size:16px; } .exorcised .amount strong { color:var(--cyan); } .amount span { display:block; color:#718096; font-size:10px; margin-top:3px; }
+    .receipt { display:none; margin-top:18px; padding:15px; border:1px dashed var(--cyan); border-radius:8px; background:rgba(0,245,212,.04); } .receipt.active { display:block; } .receipt h3 { margin:0 0 9px; color:var(--cyan); font-size:13px; } .receipt div { color:var(--muted); font:11px/1.6 var(--mono); overflow-wrap:anywhere; } .receipt b { color:#d7e2ef; }
+    .error { margin-top:12px; color:#ff8cab; font-size:12px; min-height:18px; } .footer-note { max-width:1220px; margin:0 auto 28px; color:#718096; padding:0 2px; font-size:11px; line-height:1.5; }
+    @media(max-width:850px) { header { align-items:flex-start; flex-direction:column; } .badges { justify-content:flex-start; } .notice,main,.footer-note { margin-left:16px; margin-right:16px; } main { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><div class="mark">◈</div><div><h1>NecroOps</h1><div class="subtitle">Local FinOps safety-prototype dashboard · Kiroween 2026 project assets</div></div></div>
+    <div class="badges"><span class="badge">Kiro-oriented assets</span><span class="badge safe">Local PBT gate</span></div>
+  </header>
+
+  <div class="notice">LOCAL DEMO FIXTURES — NO AWS ACCOUNT CONNECTED. All resource identifiers, costs, risk values, workflow events, receipts, and state changes shown here come from an in-memory scenario.</div>
+
+  <main>
+    <section class="card">
+      <div class="eyebrow">LOCAL FIXTURE RISK INDEX</div>
+      <h2>Modeled scenario state</h2>
+      <p class="hint">Rendered from the same-origin local simulator API. It is not cloud telemetry.</p>
+      <div class="gauge"><svg viewBox="0 0 200 200" aria-hidden="true"><circle class="track" cx="100" cy="100" r="90"></circle><circle id="gaugeFill" class="value" cx="100" cy="100" r="90"></circle></svg><div class="score"><div id="riskScoreText">—</div><small>HAUNTED INDEX</small></div></div>
+      <div id="statusBadge">LOADING LOCAL FIXTURES</div>
+      <div class="metrics"><div class="metric"><strong id="wasteMonthText">—</strong><span>Modeled monthly cost</span></div><div class="metric"><strong id="wasteYearText">—</strong><span>Modeled annual projection</span></div></div>
+      <button id="exorciseBtn" type="button">Run local fixture workflow</button>
+      <div id="uiError" class="error" role="alert"></div>
+      <div class="eyebrow" style="margin-top:20px">LOCAL WORKFLOW EVENT FEED</div>
+      <div id="crewFeed" class="feed" aria-live="polite"></div>
+    </section>
+
+    <section class="card">
+      <div class="eyebrow">FIXTURE INFRASTRUCTURE LEDGER</div>
+      <h2>In-memory scenario catalog</h2>
+      <p class="hint">This ledger is populated from <code>/api/status</code>; it does not represent AWS inventory.</p>
+      <div id="ledgerList" class="ledger"></div>
+      <div id="receiptBox" class="receipt"><h3>LOCAL FIXTURE RECEIPT — UNSIGNED</h3><div id="receiptDetails"></div></div>
+    </section>
+  </main>
+  <div class="footer-note">The button runs a 100-trial local, seeded numerical property check before changing the simulator’s in-memory state. It does not invoke Kiro, AWS, CloudWatch, Cost Explorer, or a cloud-remediation API.</div>
+
+  <script>
+    let telemetry = null;
+    const $ = id => document.getElementById(id);
+    const money = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
+    const riskColor = score => score > 70 ? '#ff0054' : score > 30 ? '#ffbe0b' : '#24d18b';
+    const readable = value => String(value || '').replaceAll('_', ' ');
+
+    function addFeed(tag, message) {
+      const line = document.createElement('div'); line.className = 'line';
+      const tagNode = document.createElement('span'); tagNode.className = 'tag'; tagNode.textContent = '[' + tag + ']';
+      const textNode = document.createElement('span'); textNode.className = 'text'; textNode.textContent = message;
+      line.append(tagNode, textNode); $('crewFeed').append(line); $('crewFeed').scrollTop = $('crewFeed').scrollHeight;
+    }
+
+    function renderLedger(resources) {
+      const ledger = $('ledgerList'); ledger.replaceChildren();
+      resources.forEach(resource => {
+        const card = document.createElement('article'); card.className = 'resource' + (resource.status === 'EXORCISED' ? ' exorcised' : '');
+        const details = document.createElement('div'); const name = document.createElement('h3'); name.textContent = resource.name + ' ';
+        const type = document.createElement('span'); type.className = 'type'; type.textContent = resource.type; name.append(type);
+        const meta = document.createElement('p'); meta.textContent = resource.id + ' · idle: ' + resource.idleDays + ' days · ' + resource.riskLevel + ' · ' + resource.status;
+        details.append(name, meta);
+        const cost = document.createElement('div'); cost.className = 'amount';
+        const value = document.createElement('strong'); value.textContent = resource.status === 'EXORCISED' ? money(resource.costMonthly) + ' modeled change' : money(resource.costMonthly) + '/mo';
+        const label = document.createElement('span'); label.textContent = resource.status === 'EXORCISED' ? 'simulated state' : 'fixture scenario'; cost.append(value, label);
+        card.append(details, cost); ledger.append(card);
+      });
+    }
+
+    function renderTelemetry(nextTelemetry) {
+      telemetry = nextTelemetry;
+      const score = telemetry.hauntedRiskIndex; const color = riskColor(score);
+      $('riskScoreText').textContent = score + '%'; $('riskScoreText').style.color = color;
+      $('gaugeFill').style.stroke = color; $('gaugeFill').style.strokeDashoffset = String(565 * (1 - score / 100));
+      $('statusBadge').textContent = readable(telemetry.status); $('statusBadge').style.color = color; $('statusBadge').style.borderColor = color; $('statusBadge').style.background = color + '1f';
+      $('wasteMonthText').textContent = money(telemetry.totalMonthlyWasteUSD); $('wasteMonthText').style.color = color;
+      $('wasteYearText').textContent = money(telemetry.annualWasteProjectionUSD); $('wasteYearText').style.color = color;
+      renderLedger(telemetry.resources);
+    }
+
+    function renderReceipt(receipt) {
+      const details = $('receiptDetails'); details.replaceChildren();
+      const entries = [
+        ['RECEIPT ID', receipt.receiptId], ['SIMULATED RESOURCE', receipt.resourceId], ['MODELED MONTHLY CHANGE', money(receipt.modeledMonthlyChangeUSD)],
+        ['LOCAL PBT RESULT', receipt.propertyBasedSafetyGate.trialsPassed + '/' + receipt.propertyBasedSafetyGate.trialsRequested + ' (seed ' + receipt.propertyBasedSafetyGate.seed + ')'],
+        ['SHA-256 RECEIPT DIGEST', receipt.receiptDigestSha256], ['MODE', receipt.executionMode]
+      ];
+      entries.forEach(([label, value]) => { const row = document.createElement('div'); const bold = document.createElement('b'); bold.textContent = label + ': '; row.append(bold, document.createTextNode(value)); details.append(row); });
+      $('receiptBox').classList.add('active');
+    }
+
+    async function readJson(response) {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || ('Request failed with ' + response.status));
+      return data;
+    }
+
+    async function loadState() {
+      $('uiError').textContent = '';
+      const response = await fetch('/api/status');
+      const data = await readJson(response);
+      renderTelemetry(data.telemetry);
+      $('crewFeed').replaceChildren();
+      addFeed('SYS', 'Loaded ' + data.telemetry.activeZombieCount + ' local fixture resources. No AWS account is connected.');
+      addFeed('SYS', 'Suggested explicit fixture target: ' + (data.telemetry.suggestedCleanupFixtureId || 'none') + '.');
+    }
+
+    async function triggerWorkflow() {
+      if (!telemetry || !telemetry.suggestedCleanupFixtureId) { $('uiError').textContent = 'No active local fixture is available to simulate.'; return; }
+      const button = $('exorciseBtn'); button.disabled = true; button.textContent = 'Running local fixture workflow…'; $('uiError').textContent = '';
+      try {
+        addFeed('SYS', 'Requesting a local workflow for explicit fixture ' + telemetry.suggestedCleanupFixtureId + '.');
+        const response = await fetch('/api/kiro-crew/execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resourceId: telemetry.suggestedCleanupFixtureId }) });
+        const data = await readJson(response); const workflow = data.orchestration;
+        workflow.actionsTaken.forEach(action => addFeed(action.roleAsset, action.detail));
+        renderTelemetry(workflow.updatedScan); renderReceipt(workflow.localFixtureReceipt);
+        addFeed('SYS', 'Local state transition complete. No AWS resource was changed.');
+      } catch (error) { $('uiError').textContent = error.message; addFeed('ERROR', error.message); }
+      finally { button.disabled = false; button.textContent = telemetry?.suggestedCleanupFixtureId ? 'Run next local fixture workflow' : 'No active local fixtures remain'; }
+    }
+
+    $('exorciseBtn').addEventListener('click', triggerWorkflow);
+    loadState().catch(error => { $('uiError').textContent = error.message; addFeed('ERROR', 'Could not load local simulator state: ' + error.message); });
+  </script>
+</body>
+</html>
