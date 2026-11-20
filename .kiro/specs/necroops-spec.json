@@ -1,0 +1,44 @@
+{
+  "$schema": "https://kiro.dev/schemas/spec-v1.json",
+  "name": "NecroOps Local Fixture Specification",
+  "version": "1.1.0",
+  "hackathon": "Kiroween 2026",
+  "runtimeStatus": "local-fixture-prototype",
+  "description": "Requirements for a local, in-memory demonstration of modeled inventory analysis, fixture-specific code examples, and a deterministic numerical safety gate. It is not an AWS integration specification in operation.",
+  "metadata": {
+    "engine": "Local deterministic fixture simulator",
+    "targetPlatform": "No AWS account connected",
+    "runtime": "Node.js 20 or newer"
+  },
+  "entities": {
+    "fixtureWorkloads": {
+      "count": 5,
+      "modeledOnly": true,
+      "riskThresholds": {
+        "critical": 80,
+        "warning": 40,
+        "safe": 20
+      }
+    },
+    "safetyInvariants": [
+      {
+        "id": "INV-PBT-01",
+        "description": "The local legacy fee rule and local example fee rule return identical integer-cent results for accepted fixture amounts.",
+        "trials": 100,
+        "strict": true
+      },
+      {
+        "id": "INV-PBT-02",
+        "description": "For accepted fixture amounts, net cents plus fee cents equals gross cents.",
+        "trials": 100,
+        "strict": true
+      },
+      {
+        "id": "INV-STATE-01",
+        "description": "Re-running a simulated cleanup on an already transitioned fixture returns ALREADY_EXORCISED without a second receipt.",
+        "strict": true
+      }
+    ]
+  },
+  "verificationNote": "This asset is checked for presence and structure by the Node suite. Kiro spec execution requires separate evidence."
+}
