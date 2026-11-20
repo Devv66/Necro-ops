@@ -97,8 +97,12 @@ exports.handler = function(event, context, callback) {
 
 const RISK_PRIORITY = Object.freeze({ CRITICAL: 3, HIGH: 2, MEDIUM: 1, SAFE: 0 });
 const FEE_RATE_BASIS_POINTS = 290;
+const MODERN_FEE_NUMERATOR = 29n;
+const MODERN_FEE_DENOMINATOR = 1_000n;
 const FIXED_FEE_CENTS = 30;
 const MINIMUM_SETTLEABLE_AMOUNT_CENTS = 32;
+// The local property-test domain is deliberately bounded to $15,000.00.
+const MAXIMUM_SETTLEABLE_AMOUNT_CENTS = 1_500_000;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -134,19 +138,32 @@ function seededRandom(seed) {
 }
 
 /**
+ * Reject values that would make JavaScript number arithmetic ambiguous before
+ * either local fee implementation is evaluated.
+ */
+function requireSafeFixtureCents(amountCents) {
+  if (!Number.isSafeInteger(amountCents) || amountCents < 0 || amountCents > MAXIMUM_SETTLEABLE_AMOUNT_CENTS) {
+    throw new RangeError(`amountCents must be a safe integer from 0 to ${MAXIMUM_SETTLEABLE_AMOUNT_CENTS}.`);
+  }
+}
+
+/**
  * The fixture's documented legacy fee rule, expressed in integer cents.
  */
 export function calculateLegacyFixturePayment(amountCents) {
+  requireSafeFixtureCents(amountCents);
   const feeCents = Math.round((amountCents * FEE_RATE_BASIS_POINTS) / 10_000) + FIXED_FEE_CENTS;
   return { feeCents, netCents: amountCents - feeCents };
 }
 
 /**
- * The local modern-example fee rule. It intentionally mirrors the fixture rule
- * for values that can settle the fixed fee.
+ * Independent local-modern fee oracle. It uses exact BigInt rational arithmetic
+ * rather than the legacy floating-point basis-point expression.
  */
 export function calculateModernFixturePayment(amountCents) {
-  const feeCents = Math.round((amountCents * FEE_RATE_BASIS_POINTS) / 10_000) + FIXED_FEE_CENTS;
+  requireSafeFixtureCents(amountCents);
+  const variableFeeCents = Number((BigInt(amountCents) * MODERN_FEE_NUMERATOR + 500n) / MODERN_FEE_DENOMINATOR);
+  const feeCents = variableFeeCents + FIXED_FEE_CENTS;
   return { feeCents, netCents: amountCents - feeCents };
 }
 
@@ -164,7 +181,8 @@ export async function handler(event) {
   if (!Number.isInteger(amountCents) || amountCents < 32) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Amount must cover the fixture fee.' }) };
   }
-  const feeCents = Math.round(amountCents * 0.029) + 30;
+  const variableFeeCents = Math.floor((amountCents * 29 + 500) / 1000);
+  const feeCents = variableFeeCents + 30;
   const netCents = amountCents - feeCents;
   return {
     statusCode: 200,
@@ -273,8 +291,16 @@ export class NecroOpsEngine {
       return { valid: false, reason: 'Input amount must be a positive finite number.', input: amount };
     }
 
-    const amountCents = Math.round(amount * 100);
-    if (Math.abs(amount * 100 - amountCents) > 0.000001) {
+    const rawCents = amount * 100;
+    const amountCents = Math.round(rawCents);
+    if (!Number.isSafeInteger(amountCents) || amountCents > MAXIMUM_SETTLEABLE_AMOUNT_CENTS) {
+      return {
+        valid: false,
+        reason: `Input amount must resolve to a safe integer-cent value no greater than ${centsToUsd(MAXIMUM_SETTLEABLE_AMOUNT_CENTS)}.`,
+        input: amount
+      };
+    }
+    if (Math.abs(rawCents - amountCents) > 0.000001) {
       return { valid: false, reason: 'Input amount must have no more than two decimal places.', input: amount };
     }
 
@@ -283,7 +309,7 @@ export class NecroOpsEngine {
     if (amountCents < MINIMUM_SETTLEABLE_AMOUNT_CENTS || legacy.netCents < 0) {
       return {
         valid: false,
-        reason: 'Input amount does not cover the fixture fee rule.',
+        reason: 'Input amount must leave at least one net cent after the fixture fee rule.',
         inputAmount: amount,
         inputAmountCents: amountCents,
         calculatedFee: centsToUsd(legacy.feeCents),
@@ -320,7 +346,7 @@ export class NecroOpsEngine {
     const trials = [];
     const failures = [];
     const minimum = MINIMUM_SETTLEABLE_AMOUNT_CENTS;
-    const maximum = 1_500_000;
+    const maximum = MAXIMUM_SETTLEABLE_AMOUNT_CENTS;
 
     for (let index = 0; index < trialCount; index += 1) {
       const amountCents = minimum + Math.floor(random() * (maximum - minimum + 1));
@@ -403,6 +429,32 @@ export class NecroOpsEngine {
       detail: 'Selected an explicit resource from the in-memory fixture catalog. No cloud inventory query occurred.'
     }];
 
+    // A retry must be an explicit no-op: it must not claim a new state change,
+    // rerun the safety gate, recreate a receipt, or report prior savings again.
+    if (target.status === 'EXORCISED') {
+      const updatedScan = this.scanCloudPerimeter();
+      actionsTaken.push({
+        roleAsset: 'Exorcist',
+        action: 'LOCAL_NO_OP_ALREADY_EXORCISED',
+        target: target.id,
+        detail: 'No local state transition was performed. This fixture was already exorcised; no safety gate or new receipt was created.'
+      });
+      return {
+        status: 'ALREADY_EXORCISED',
+        mutated: false,
+        executionMode: 'local-demo-fixture',
+        workflowSessionId: `LOCAL-SIM-${Date.now()}`,
+        orchestrationTime: new Date().toISOString(),
+        roleAssetsReferenced: ['Reaper', 'Exorcist'],
+        actionsTaken,
+        resurrectionSummary: null,
+        localFixtureReceipt: null,
+        remainingRiskIndex: updatedScan.hauntedRiskIndex,
+        modeledMonthlyChangeUSD: 0,
+        updatedScan
+      };
+    }
+
     let resurrectionSummary = null;
     if (target.legacyCode) {
       resurrectionSummary = this.resurrectLegacyCode(target.id);
@@ -424,6 +476,8 @@ export class NecroOpsEngine {
 
     const updatedScan = this.scanCloudPerimeter();
     return {
+      status: 'EXORCISED',
+      mutated: true,
       executionMode: 'local-demo-fixture',
       workflowSessionId: `LOCAL-SIM-${Date.now()}`,
       orchestrationTime: new Date().toISOString(),
@@ -437,3 +491,4 @@ export class NecroOpsEngine {
     };
   }
 }
+
