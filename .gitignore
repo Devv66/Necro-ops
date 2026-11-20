@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+.npm/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Logs & temp files
+*.log
+npm-debug.log*
+
+# CRITICAL FOR KIROWEEN 2026 JUDGING:
+# The /.kiro directory contains all specs, hooks, steering rules, and custom agents.
+# Per official rules, /.kiro MUST be committed to the root of the repository.
+!/.kiro/
+!/.kiro/**
