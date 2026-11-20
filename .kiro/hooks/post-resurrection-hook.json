@@ -1,0 +1,14 @@
+{
+  "name": "post-resurrection-receipt-note",
+  "runtimeStatus": "illustrative-unverified",
+  "trigger": "PostFileSave",
+  "matcher": "src/resurrected/**/*.js",
+  "description": "Illustrative Kiro-oriented hook definition. No Kiro runtime loads this file in the local fixture prototype.",
+  "action": {
+    "type": "agentPrompt",
+    "prompt": "Record that the local fixture example was generated for review and label it as not deployed. Do not claim a Kiro runtime execution."
+  },
+  "confirmGate": false,
+  "abortOnFailure": false,
+  "verificationNote": "This repository proves the JSON asset is present, not that a hook ran."
+}
