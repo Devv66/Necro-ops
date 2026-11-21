@@ -1,6 +1,6 @@
 {
   "name": "necro-ops",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Local fixture-based FinOps safety prototype with Kiro-oriented project assets",
   "main": "src/engine.js",
   "type": "module",
@@ -11,7 +11,9 @@
     "start": "node src/server.js",
     "test": "node --test tests/necroops.test.mjs",
     "test:gate": "node scripts/fixture-safety-gate.mjs --trials=100",
-    "ci": "npm test && npm run test:gate"
+    "ci": "npm test && npm run test:gate",
+    "audit:refresh": "node scripts/regenerate-audit.mjs --write",
+    "audit:verify": "node scripts/regenerate-audit.mjs --verify"
   },
   "keywords": [
     "kiro",
