@@ -1,5 +1,7 @@
 {
-  "artifact": "NecroOps audited test-run record",
+  "artifact": "NecroOps historical audited test-run record — SUPERSEDED",
+  "status": "SUPERSEDED_HISTORICAL_ARTIFACT_DO_NOT_USE_FOR_CURRENT_SOURCE_OR_SUBMISSION",
+  "supersededBy": "docs/audit/necroops-fixture-mode-audit-log.json",
   "schemaVersion": 1,
   "scope": "Source inventory and automated test verification for the public Kiroween 2026 submission.",
   "sourceCommitTested": "27bbca9ae2a77affa2f8d0ffe4016c21c13bcf31",
@@ -26,3 +28,4 @@
   },
   "verification": "Recalculate this file digest with: sha256sum docs/audit/necroops-audit-log.json"
 }
+
