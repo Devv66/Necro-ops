@@ -1,4 +1,4 @@
-# NecroOps — truthful Devpost Story replacement
+[# NecroOps — truthful Devpost Story replacement
 
 > Use this as the complete Story replacement after the public repository contains the matching source revision and audit artifact. Do not submit until the public URLs and final audit digest are checked.
 
@@ -116,3 +116,4 @@ For destructive infrastructure workflows, a polished simulation is not the same 
 - a signed action certificate; or
 - Kiro bonus-track eligibility.
 
+](https://github.com/Devv66/Necro-ops/edit/main/docs/DEVPOST_TRUTHFUL_REPLACEMENT.md)
