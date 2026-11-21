@@ -212,6 +212,65 @@ export class NecroOpsEngine {
     this.exorcisedLog = [];
   }
 
+  /**
+   * Restore only this engine instance's local demo scenario. This deliberately
+   * has no cloud side effect, accepts no external fixture data, and clears
+   * only simulated receipts held in this process's memory.
+   */
+  resetLocalFixtureScenario() {
+    const clearedReceiptCount = this.exorcisedLog.length;
+    this.zombies = clone(ZOMBIE_CATALOG);
+    this.exorcisedLog = [];
+    const updatedScan = this.scanCloudPerimeter();
+
+    return {
+      executionMode: 'local-demo-fixture',
+      resetAt: new Date().toISOString(),
+      resetFixtureCount: this.zombies.length,
+      clearedReceiptCount,
+      message: 'Restored the five local demo fixtures to their initial in-memory scenario. No AWS resource was changed.',
+      updatedScan
+    };
+  }
+
+  /**
+   * The public demo stores only the IDs of simulated transitions in a browser
+   * session cookie. No fixture content, receipt, credential, or cloud data is
+   * accepted from that cookie.
+   */
+  exportLocalFixtureSession() {
+    return {
+      version: 1,
+      exorcisedFixtureIds: this.zombies
+        .filter(zombie => zombie.status === 'EXORCISED')
+        .map(zombie => zombie.id)
+        .sort()
+    };
+  }
+
+  restoreLocalFixtureSession(session) {
+    if (!session || typeof session !== 'object' || session.version !== 1 || !Array.isArray(session.exorcisedFixtureIds)) {
+      return false;
+    }
+
+    const permittedIds = new Set(ZOMBIE_CATALOG.map(zombie => zombie.id));
+    const uniqueIds = [...new Set(session.exorcisedFixtureIds)];
+    if (uniqueIds.length !== session.exorcisedFixtureIds.length || uniqueIds.some(id => typeof id !== 'string' || !permittedIds.has(id))) {
+      return false;
+    }
+
+    this.zombies = clone(ZOMBIE_CATALOG);
+    this.exorcisedLog = [];
+    for (const resourceId of uniqueIds) {
+      const resource = this.getResource(resourceId);
+      resource.status = 'EXORCISED';
+      resource.riskLevel = 'SAFE';
+      // A session restores only the simulated transition count, not a receipt.
+      this.exorcisedLog.push({ resourceId, restoredFromLocalFixtureSession: true });
+    }
+    return true;
+  }
+
   getResource(resourceId) {
     const resource = this.zombies.find(zombie => zombie.id === resourceId);
     if (!resource) {
@@ -491,4 +550,3 @@ export class NecroOpsEngine {
     };
   }
 }
-
