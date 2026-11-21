@@ -17,8 +17,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '..');
 
-function startIsolatedServer() {
-  const server = createServer({ engine: new NecroOpsEngine() });
+function startIsolatedServer(options = {}) {
+  const server = createServer({ engine: new NecroOpsEngine(), ...options });
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', () => {
@@ -101,8 +101,8 @@ test('NecroOps local fixture suite', async (t) => {
     assert.throws(() => engine.resurrectLegacyCode('not-real'), { code: 'RESOURCE_NOT_FOUND' });
   });
 
-  await t.test('cent-based fixture arithmetic preserves money and matches both local examples', () => {
-    const amounts = [32, 101, 5025, 10000, 99999, 1500050];
+  await t.test('cent-based fixture arithmetic preserves money and uses independent local formula representations', () => {
+    const amounts = [32, 101, 5025, 10000, 99999, 1500000];
     for (const amountCents of amounts) {
       const legacy = calculateLegacyFixturePayment(amountCents);
       const modern = calculateModernFixturePayment(amountCents);
@@ -110,10 +110,12 @@ test('NecroOps local fixture suite', async (t) => {
       assert.equal(modern.netCents + modern.feeCents, amountCents);
       assert.ok(modern.netCents >= 0);
     }
+    assert.throws(() => calculateLegacyFixturePayment(Number.MAX_SAFE_INTEGER), RangeError);
+    assert.throws(() => calculateModernFixturePayment(Number.MAX_SAFE_INTEGER), RangeError);
   });
 
-  await t.test('financial invariant rejects invalid, fractional-cent, and below-fee values', () => {
-    for (const amount of [-10, 0, Number.NaN, Number.POSITIVE_INFINITY, 0.01, 0.31, 10.001]) {
+  await t.test('financial invariant rejects invalid, fractional-cent, unsafe, and out-of-domain values', () => {
+    for (const amount of [-10, 0, Number.NaN, Number.POSITIVE_INFINITY, 0.01, 0.31, 10.001, 15000.01, 1e20, Number.MAX_VALUE]) {
       assert.equal(engine.verifyPropertyBasedInvariants({ amount }).valid, false);
     }
     const valid = engine.verifyPropertyBasedInvariants({ amount: 0.32 });
@@ -122,6 +124,23 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(valid.sumCheckCents, 32);
     assert.equal(valid.legacyAndExampleEquivalent, true);
     assert.equal(valid.moneyConserved, true);
+  });
+
+  await t.test('generated modern payment example executes and agrees with the independent local oracle', async () => {
+    // This fixture string is emitted by the checked-in engine, never request input.
+    // Executing it here verifies the example artifact rather than treating it as a claim.
+    const modernizedExample = engine.resurrectLegacyCode('i-0f948a913bc89a712').modernizedExample;
+    const createHandler = new Function(`${modernizedExample.replace('export async function handler', 'async function handler')}\nreturn handler;`);
+    const handler = createHandler();
+    const amount = 100.01;
+    const response = await handler({ body: JSON.stringify({ amount }) });
+    const body = JSON.parse(response.body);
+    const expected = calculateModernFixturePayment(10001);
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(body, { success: true, fee: expected.feeCents / 100, net: expected.netCents / 100 });
+    const rejected = await handler({ body: JSON.stringify({ amount: 0.31 }) });
+    assert.equal(rejected.statusCode, 400);
   });
 
   await t.test('property gate is deterministic for a fixed seed and trial count', () => {
@@ -168,14 +187,25 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(repeat.executionMode, 'local-demo-fixture');
   });
 
-  await t.test('orchestration requires an explicit fixture target and returns API-backed state', () => {
+  await t.test('orchestration reports a truthful, zero-change idempotent retry', () => {
     assert.throws(() => engine.runKiroCrewOrchestration(), { code: 'RESOURCE_ID_REQUIRED' });
     const workflow = engine.runKiroCrewOrchestration('i-0f948a913bc89a712');
+    assert.equal(workflow.status, 'EXORCISED');
+    assert.equal(workflow.mutated, true);
     assert.equal(workflow.executionMode, 'local-demo-fixture');
     assert.equal(workflow.actionsTaken.length, 3);
     assert.equal(workflow.updatedScan.activeZombieCount, 4);
     assert.equal(workflow.updatedScan.hauntedRiskIndex, 65);
     assert.equal(workflow.localFixtureReceipt.propertyBasedSafetyGate.trialsPassed, 100);
+
+    const repeat = engine.runKiroCrewOrchestration('i-0f948a913bc89a712');
+    assert.equal(repeat.status, 'ALREADY_EXORCISED');
+    assert.equal(repeat.mutated, false);
+    assert.equal(repeat.modeledMonthlyChangeUSD, 0);
+    assert.equal(repeat.localFixtureReceipt, null);
+    assert.equal(repeat.resurrectionSummary, null);
+    assert.equal(repeat.actionsTaken.at(-1).action, 'LOCAL_NO_OP_ALREADY_EXORCISED');
+    assert.match(repeat.actionsTaken.at(-1).detail, /No local state transition was performed/);
   });
 
   await t.test('all required Kiro-oriented assets are tracked at the correct root paths', () => {
@@ -268,10 +298,127 @@ test('NecroOps local fixture suite', async (t) => {
         body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
       });
       assert.equal(workflow.response.status, 200);
+      assert.equal(workflow.body.orchestration.status, 'EXORCISED');
+      assert.equal(workflow.body.orchestration.mutated, true);
       assert.equal(workflow.body.orchestration.updatedScan.activeZombieCount, 4);
       assert.equal(workflow.body.orchestration.localFixtureReceipt.propertyBasedSafetyGate.trialsPassed, 100);
+
+      const repeatedWorkflow = await request(baseUrl, '/api/kiro-crew/execute', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+      });
+      assert.equal(repeatedWorkflow.response.status, 200);
+      assert.equal(repeatedWorkflow.body.orchestration.status, 'ALREADY_EXORCISED');
+      assert.equal(repeatedWorkflow.body.orchestration.mutated, false);
+      assert.equal(repeatedWorkflow.body.orchestration.modeledMonthlyChangeUSD, 0);
+      assert.equal(repeatedWorkflow.body.orchestration.localFixtureReceipt, null);
+      assert.equal(repeatedWorkflow.body.orchestration.actionsTaken.at(-1).action, 'LOCAL_NO_OP_ALREADY_EXORCISED');
     } finally {
       await stopServer(server);
     }
   });
+
+  await t.test('HTTP server validates supported routes, methods, static responses, and engine errors', async () => {
+    const { server, baseUrl } = await startIsolatedServer();
+    try {
+      const options = await request(baseUrl, '/api/status', { method: 'OPTIONS' });
+      assert.equal(options.response.status, 204);
+      assert.equal(options.response.headers.get('allow'), 'GET, POST, OPTIONS');
+
+      const queryStatus = await request(baseUrl, '/api/status?ignored=1');
+      assert.equal(queryStatus.response.status, 200);
+      assert.equal(queryStatus.response.headers.get('cache-control'), 'no-store');
+      assert.equal(queryStatus.response.headers.get('x-content-type-options'), 'nosniff');
+
+      const wrongStatusMethod = await request(baseUrl, '/api/status', { method: 'POST' });
+      assert.equal(wrongStatusMethod.response.status, 405);
+      assert.equal(wrongStatusMethod.response.headers.get('allow'), 'GET, OPTIONS');
+
+      const scan = await request(baseUrl, '/api/scan');
+      assert.equal(scan.response.status, 200);
+      assert.equal(scan.body.executionMode, 'local-demo-fixture');
+
+      const resurrected = await request(baseUrl, '/api/resurrect', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+      });
+      assert.equal(resurrected.response.status, 200);
+      assert.equal(resurrected.body.result.deploymentStatus, 'not-deployed');
+
+      const noCode = await request(baseUrl, '/api/resurrect', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ resourceId: 'vol-084920491823abf10' })
+      });
+      assert.equal(noCode.response.status, 409);
+      assert.equal(noCode.body.code, 'NO_LEGACY_CODE');
+
+      const invalidShape = await request(baseUrl, '/api/exorcise', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '[]'
+      });
+      assert.equal(invalidShape.response.status, 400);
+      assert.equal(invalidShape.body.code, 'INVALID_JSON_SHAPE');
+
+      const invalidReason = await request(baseUrl, '/api/exorcise', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ resourceId: 'vol-084920491823abf10', reason: '   ' })
+      });
+      assert.equal(invalidReason.response.status, 400);
+      assert.equal(invalidReason.body.code, 'INVALID_REASON');
+
+      const directCleanup = await request(baseUrl, '/api/exorcise', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ resourceId: 'vol-084920491823abf10', reason: 'Local test cleanup' })
+      });
+      assert.equal(directCleanup.response.status, 200);
+      assert.equal(directCleanup.body.receipt.propertyBasedSafetyGate.trialsPassed, 100);
+
+      const idempotentCleanup = await request(baseUrl, '/api/exorcise', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ resourceId: 'vol-084920491823abf10' })
+      });
+      assert.equal(idempotentCleanup.response.status, 200);
+      assert.equal(idempotentCleanup.body.receipt.status, 'ALREADY_EXORCISED');
+
+      const unknownFixture = await request(baseUrl, '/api/exorcise', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ resourceId: 'not-a-fixture' })
+      });
+      assert.equal(unknownFixture.response.status, 404);
+      assert.equal(unknownFixture.body.code, 'RESOURCE_NOT_FOUND');
+
+      const root = await request(baseUrl, '/');
+      assert.equal(root.response.status, 200);
+      assert.match(root.body, /LOCAL DEMO FIXTURES/);
+      const missingStatic = await request(baseUrl, '/not-a-dashboard-file');
+      assert.equal(missingStatic.response.status, 404);
+      assert.equal(missingStatic.body, 'Not found.');
+    } finally {
+      await stopServer(server);
+    }
+
+    const absentPublicDir = path.join(projectRoot, 'not-a-public-directory');
+    const { server: missingAssetServer, baseUrl: missingAssetBaseUrl } = await startIsolatedServer({ publicDir: absentPublicDir });
+    try {
+      const missingAsset = await request(missingAssetBaseUrl, '/');
+      assert.equal(missingAsset.response.status, 500);
+      assert.equal(missingAsset.body, 'Dashboard asset is missing.');
+    } finally {
+      await stopServer(missingAssetServer);
+    }
+
+    const { server: brokenEngineServer, baseUrl: brokenEngineBaseUrl } = await startIsolatedServer({
+      engine: { scanCloudPerimeter() { throw new Error('Local test engine failure.'); } }
+    });
+    try {
+      const brokenStatus = await request(brokenEngineBaseUrl, '/api/status');
+      assert.equal(brokenStatus.response.status, 500);
+      assert.equal(brokenStatus.body.code, 'INTERNAL_ERROR');
+      assert.equal(brokenStatus.body.error, 'Unexpected local server error.');
+    } finally {
+      await stopServer(brokenEngineServer);
+    }
+  });
 });
+
