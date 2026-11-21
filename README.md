@@ -38,7 +38,7 @@ This is a code-level property for a demo fixture—not approval to mutate cloud 
 
 The dashboard includes **Reset Local Fixture Scenario**. It sends `POST /api/reset` with an empty JSON object and restores the five local fixtures to the initial **88%** risk index and **$1,050/month** modeled total. It does not reset, read, or change AWS, Kiro, or any external account.
 
-For deterministic Vercel behavior, the server stores only the IDs of simulated local transitions in a four-hour, `HttpOnly`, `SameSite=Lax` browser-session cookie and reconstructs the fixture engine on each API request. The cookie contains no receipt, fixture content, credential, cloud-account data, or external-resource identifier. Clearing/expiring it returns the browser to the default local scenario; it is not cloud persistence.
+For deterministic browser sessions, the server stores only the IDs of simulated local transitions in an HMAC-SHA256 v2 cookie with signed `issuedAt`/`expiresAt` values and a four-hour lifetime. The cookie is `HttpOnly` and `SameSite=Lax`; `Secure` is set for HTTPS and production. Local HTTP development remains compatible. The default signing key is ephemeral per process; deployments that need session continuity across server instances must provide `NECROOPS_SESSION_SECRET` through deployment environment configuration, never a committed file. The cookie contains no receipt, fixture content, credential, cloud-account data, or external-resource identifier. Clearing/expiring it returns the browser to the default local scenario; it is not cloud persistence.
 
 ## Kiro-oriented project assets
 
@@ -102,7 +102,7 @@ The artifact path is:
 docs/audit/necroops-fixture-mode-audit-log.json
 ```
 
-**Complete audit artifact SHA-256:** `2891c5beadbaede7a4e5a524f89e4ed86b279995d3a7215159b3a7580897ab6d`
+**Complete audit artifact SHA-256:** `996d8533ea606bb7d7a72a794f426e57fa4bac487ebd21cc83f0af0897f0e234`
 
 The inventory covers every version-controlled, non-ignored project file except the audit artifact itself (a file cannot include its own raw hash). To avoid a hash self-reference, the three documentation lines that repeat this artifact digest are normalized to a fixed token before their inventory hashes are calculated. `npm run audit:verify` checks the complete inventory, that normalization rule, and that the visible digest lines match the artifact bytes. Historical audits remain historical; they are not evidence for a later source revision.
 

@@ -24,7 +24,12 @@ function sha256(bytes) {
 }
 
 function run(command, args) {
-  const result = spawnSync(command, args, {
+  // npm exposes its active CLI path to lifecycle scripts. Invoking it through
+  // Node avoids Windows spawnSync resolution failures for npm.cmd wrappers.
+  const useNpmCli = command === 'npm' && process.env.npm_execpath;
+  const executable = useNpmCli ? process.execPath : command;
+  const executableArgs = useNpmCli ? [process.env.npm_execpath, ...args] : args;
+  const result = spawnSync(executable, executableArgs, {
     cwd: projectRoot,
     encoding: 'utf8',
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false' }
@@ -103,8 +108,8 @@ function staticBoundaryScan() {
 }
 
 function buildAuditRecord({ ciOutput, resetSmoke }) {
-  const tapPass = ciOutput.match(/# pass (\d+)/)?.[1];
-  const namedNestedChecks = (ciOutput.match(/^    # Subtest:/gm) || []).length;
+  const tapPass = ciOutput.match(/(?:# pass|ℹ pass) (\d+)/)?.[1];
+  const namedNestedChecks = (ciOutput.match(/^(?:    # Subtest:|  ✔ )/gm) || []).length;
   const gatePassed = /"passed": true,[\s\S]*?"trialsRequested": 100,[\s\S]*?"trialsPassed": 100/.test(ciOutput);
   if (!tapPass || !gatePassed) fail('could not parse successful CI and 100/100 fixture-gate results');
   const inventory = sourceInventory();

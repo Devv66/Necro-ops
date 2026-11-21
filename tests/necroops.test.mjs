@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -8,6 +9,7 @@ import {
   calculateLegacyFixturePayment,
   calculateModernFixturePayment,
   NecroOpsEngine,
+  classifyFixtureRisk,
   verifyFixtureReceipt,
   ZOMBIE_CATALOG
 } from '../src/engine.js';
@@ -99,6 +101,17 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(scan.annualWasteProjectionUSD, 12600);
     assert.equal(scan.hauntedRiskIndex, 88);
     assert.equal(scan.status, 'CRITICAL_HAUNTED');
+  });
+
+  await t.test('risk classification uses the documented inclusive boundaries', () => {
+    assert.equal(classifyFixtureRisk(79), 'EERIE_WARNING');
+    assert.equal(classifyFixtureRisk(80), 'CRITICAL_HAUNTED');
+    assert.equal(classifyFixtureRisk(39), 'LOW_RISK_FIXTURES');
+    assert.equal(classifyFixtureRisk(40), 'EERIE_WARNING');
+    assert.equal(classifyFixtureRisk(19), 'SANCTIFIED_CLEAN');
+    assert.equal(classifyFixtureRisk(20), 'LOW_RISK_FIXTURES');
+    assert.throws(() => classifyFixtureRisk(-1), RangeError);
+    assert.throws(() => classifyFixtureRisk(101), RangeError);
   });
 
   await t.test('scan results are stable snapshots, not live references', () => {
@@ -242,7 +255,7 @@ test('NecroOps local fixture suite', async (t) => {
   await t.test('local-fixture session restores only validated simulated transition IDs', () => {
     engine.exorciseZombieResource('i-0f948a913bc89a712');
     const session = engine.exportLocalFixtureSession();
-    assert.deepEqual(session, { version: 1, exorcisedFixtureIds: ['i-0f948a913bc89a712'] });
+    assert.deepEqual(session, { version: 2, exorcisedFixtureIds: ['i-0f948a913bc89a712'] });
 
     const restored = new NecroOpsEngine();
     assert.equal(restored.restoreLocalFixtureSession(session), true);
@@ -250,7 +263,7 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(restored.runKiroCrewOrchestration('i-0f948a913bc89a712').status, 'ALREADY_EXORCISED');
 
     const rejected = new NecroOpsEngine();
-    assert.equal(rejected.restoreLocalFixtureSession({ version: 1, exorcisedFixtureIds: ['not-a-fixture'] }), false);
+    assert.equal(rejected.restoreLocalFixtureSession({ version: 2, exorcisedFixtureIds: ['not-a-fixture'] }), false);
     assert.equal(rejected.scanCloudPerimeter().activeZombieCount, 5);
   });
 
@@ -393,6 +406,19 @@ test('NecroOps local fixture suite', async (t) => {
       assert.equal(resetWrongContentType.response.status, 415);
       assert.equal(resetWrongContentType.body.code, 'UNSUPPORTED_MEDIA_TYPE');
 
+      for (const [body, expectedCode] of [
+        ['{"resourceId":"i-0f948a913bc89a712"}', 'INVALID_RESET_BODY'],
+        ['[]', 'INVALID_JSON_SHAPE'],
+        ['{bad json', 'MALFORMED_JSON'],
+        ['', 'INVALID_RESET_BODY']
+      ]) {
+        const invalidReset = await request(baseUrl, '/api/reset', {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body
+        });
+        assert.equal(invalidReset.response.status, 400);
+        assert.equal(invalidReset.body.code, expectedCode);
+      }
+
       const reset = await request(baseUrl, '/api/reset', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}'
       });
@@ -419,14 +445,18 @@ test('NecroOps local fixture suite', async (t) => {
     }
   });
 
-  await t.test('default HTTP server keeps each browser local-fixture scenario deterministic through a validated HttpOnly session cookie', async () => {
-    const { server, baseUrl } = await startBrowserSessionServer();
+  await t.test('default HTTP server signs v2 sessions, enforces expiry, and preserves local fixture state', async () => {
+    const sessionSecret = 'test-only-session-signing-key-32-bytes-minimum';
+    const now = () => 1_800_000_000_000;
+    const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret, now });
     try {
       const initial = await request(baseUrl, '/api/status');
       let cookie = initial.response.headers.get('set-cookie')?.split(';')[0];
-      assert.match(cookie || '', /^necroops_local_fixture_state=/);
+      assert.match(cookie || '', /^necroops_local_fixture_state=v2\./);
       assert.match(initial.response.headers.get('set-cookie') || '', /HttpOnly/);
       assert.match(initial.response.headers.get('set-cookie') || '', /SameSite=Lax/);
+      assert.match(initial.response.headers.get('set-cookie') || '', /Max-Age=14400/);
+      assert.doesNotMatch(initial.response.headers.get('set-cookie') || '', /Secure/);
       assert.equal(initial.body.telemetry.activeZombieCount, 5);
       assert.equal(initial.body.telemetry.hauntedRiskIndex, 88);
 
@@ -457,7 +487,34 @@ test('NecroOps local fixture suite', async (t) => {
 
       const invalidCookie = await request(baseUrl, '/api/status', { headers: { cookie: 'necroops_local_fixture_state=not-valid-json' } });
       assert.equal(invalidCookie.body.telemetry.activeZombieCount, 5);
-      assert.match(invalidCookie.response.headers.get('set-cookie') || '', /^necroops_local_fixture_state=/);
+      assert.match(invalidCookie.response.headers.get('set-cookie') || '', /^necroops_local_fixture_state=v2\./);
+
+      const encodeSigned = payload => {
+        const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+        const signature = crypto.createHmac('sha256', sessionSecret).update(`v2.${encoded}`).digest('hex');
+        return `necroops_local_fixture_state=v2.${encoded}.${signature}`;
+      };
+      const payload = { version: 2, exorcisedFixtureIds: ['i-0f948a913bc89a712'], issuedAt: now() - 5 * 60 * 60_000, expiresAt: now() - 60_000 };
+      const expired = await request(baseUrl, '/api/status', { headers: { cookie: encodeSigned(payload) } });
+      assert.equal(expired.body.telemetry.activeZombieCount, 5);
+      assert.equal(expired.body.telemetry.exorcisedCount, 0);
+
+      for (const invalidWindow of [
+        { version: 2, exorcisedFixtureIds: [], issuedAt: now() + 120_000, expiresAt: now() + 4 * 60 * 60_000 + 120_000 },
+        { version: 2, exorcisedFixtureIds: [], issuedAt: now() - 1_000, expiresAt: now() + 4 * 60 * 60_000 }
+      ]) {
+        const invalidSession = await request(baseUrl, '/api/status', { headers: { cookie: encodeSigned(invalidWindow) } });
+        assert.equal(invalidSession.body.telemetry.activeZombieCount, 5);
+        assert.equal(invalidSession.body.telemetry.exorcisedCount, 0);
+      }
+
+      const validCookie = (await request(baseUrl, '/api/status')).response.headers.get('set-cookie').split(';')[0];
+      const [name, value] = validCookie.split('=');
+      const parts = value.split('.');
+      parts[2] = `${parts[2][0] === '0' ? '1' : '0'}${parts[2].slice(1)}`;
+      const tampered = await request(baseUrl, '/api/status', { headers: { cookie: `${name}=${parts.join('.')}` } });
+      assert.equal(tampered.body.telemetry.activeZombieCount, 5);
+      assert.equal(tampered.body.telemetry.exorcisedCount, 0);
     } finally {
       await stopServer(server);
     }
@@ -476,6 +533,9 @@ test('NecroOps local fixture suite', async (t) => {
       assert.equal(initial.response.status, 200);
       assert.equal(initial.body.telemetry.activeZombieCount, 5);
       assert.match(initial.response.headers.get('set-cookie') || '', /Secure/);
+      assert.match(initial.response.headers.get('set-cookie') || '', /HttpOnly/);
+      assert.match(initial.response.headers.get('set-cookie') || '', /SameSite=Lax/);
+      assert.match(initial.response.headers.get('set-cookie') || '', /Max-Age=14400/);
 
       const workflow = await request(baseUrl, '/api/kiro-crew/execute', {
         method: 'POST',

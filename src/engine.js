@@ -96,6 +96,20 @@ exports.handler = function(event, context, callback) {
 ];
 
 const RISK_PRIORITY = Object.freeze({ CRITICAL: 3, HIGH: 2, MEDIUM: 1, SAFE: 0 });
+export const RISK_CLASSIFICATION = Object.freeze({
+  CRITICAL: 'CRITICAL_HAUNTED',
+  WARNING: 'EERIE_WARNING',
+  LOW: 'LOW_RISK_FIXTURES',
+  CLEAN: 'SANCTIFIED_CLEAN'
+});
+
+export function classifyFixtureRisk(score) {
+  if (!Number.isFinite(score) || score < 0 || score > 100) throw new RangeError('Risk score must be a finite number from 0 to 100.');
+  if (score >= 80) return RISK_CLASSIFICATION.CRITICAL;
+  if (score >= 40) return RISK_CLASSIFICATION.WARNING;
+  if (score >= 20) return RISK_CLASSIFICATION.LOW;
+  return RISK_CLASSIFICATION.CLEAN;
+}
 const FEE_RATE_BASIS_POINTS = 290;
 const MODERN_FEE_NUMERATOR = 29n;
 const MODERN_FEE_DENOMINATOR = 1_000n;
@@ -240,7 +254,7 @@ export class NecroOpsEngine {
    */
   exportLocalFixtureSession() {
     return {
-      version: 1,
+      version: 2,
       exorcisedFixtureIds: this.zombies
         .filter(zombie => zombie.status === 'EXORCISED')
         .map(zombie => zombie.id)
@@ -249,7 +263,7 @@ export class NecroOpsEngine {
   }
 
   restoreLocalFixtureSession(session) {
-    if (!session || typeof session !== 'object' || session.version !== 1 || !Array.isArray(session.exorcisedFixtureIds)) {
+    if (!session || typeof session !== 'object' || session.version !== 2 || !Array.isArray(session.exorcisedFixtureIds)) {
       return false;
     }
 
@@ -314,7 +328,7 @@ export class NecroOpsEngine {
       executionMode: 'local-demo-fixture',
       scannedAt: new Date().toISOString(),
       hauntedRiskIndex: score,
-      status: score > 70 ? 'CRITICAL_HAUNTED' : (score > 30 ? 'EERIE_WARNING' : 'SANCTIFIED_CLEAN'),
+      status: classifyFixtureRisk(score),
       totalMonthlyWasteUSD: Number(totalWaste.toFixed(2)),
       annualWasteProjectionUSD: Number((totalWaste * 12).toFixed(2)),
       activeZombieCount: activeZombies,

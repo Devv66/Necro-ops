@@ -1,4 +1,5 @@
 import http from 'node:http';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +11,12 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const MAX_BODY_BYTES = 32 * 1024;
 const LOCAL_FIXTURE_SESSION_COOKIE = 'necroops_local_fixture_state';
 const LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS = 4 * 60 * 60;
+const LOCAL_FIXTURE_SESSION_MAX_AGE_MS = LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS * 1000;
+const configuredSessionSecret = process.env.NECROOPS_SESSION_SECRET;
+if (configuredSessionSecret && Buffer.byteLength(configuredSessionSecret) < 32) {
+  throw new Error('NECROOPS_SESSION_SECRET must contain at least 32 bytes.');
+}
+const DEFAULT_SESSION_SECRET = configuredSessionSecret || crypto.randomBytes(32);
 
 class HttpError extends Error {
   constructor(statusCode, message, code = 'REQUEST_ERROR') {
@@ -40,7 +47,7 @@ function sendText(res, statusCode, text, contentType = 'text/plain; charset=utf-
   res.end(text);
 }
 
-function parseJsonBody(req, limit = MAX_BODY_BYTES) {
+function parseJsonBody(req, limit = MAX_BODY_BYTES, { requireEmptyObject = false } = {}) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
@@ -69,6 +76,10 @@ function parseJsonBody(req, limit = MAX_BODY_BYTES) {
       const raw = Buffer.concat(chunks).toString('utf8');
       if (raw.length === 0) {
         settled = true;
+        if (requireEmptyObject) {
+          reject(new HttpError(400, 'Reset requests must contain a literal empty JSON object.', 'INVALID_RESET_BODY'));
+          return;
+        }
         resolve({});
         return;
       }
@@ -76,6 +87,9 @@ function parseJsonBody(req, limit = MAX_BODY_BYTES) {
         const parsed = JSON.parse(raw);
         if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
           throw new HttpError(400, 'JSON request body must be an object.', 'INVALID_JSON_SHAPE');
+        }
+        if (requireEmptyObject && Object.keys(parsed).length !== 0) {
+          throw new HttpError(400, 'Reset requests must contain a literal empty JSON object.', 'INVALID_RESET_BODY');
         }
         settled = true;
         resolve(parsed);
@@ -141,25 +155,44 @@ function parseCookies(req) {
   }).filter(([name]) => name));
 }
 
-function engineFromLocalFixtureSession(req) {
+function safeEqualHex(left, right) {
+  if (typeof left !== 'string' || typeof right !== 'string' || !/^[a-f0-9]{64}$/.test(left) || !/^[a-f0-9]{64}$/.test(right)) return false;
+  return crypto.timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'));
+}
+
+function signSession(encodedPayload, secret) {
+  return crypto.createHmac('sha256', secret).update(`v2.${encodedPayload}`).digest('hex');
+}
+
+function engineFromLocalFixtureSession(req, now, secret) {
   const engine = new NecroOpsEngine();
   const encoded = parseCookies(req)[LOCAL_FIXTURE_SESSION_COOKIE];
   if (!encoded) return engine;
 
   try {
-    const session = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
-    engine.restoreLocalFixtureSession(session);
+    const [version, payload, signature, extra] = encoded.split('.');
+    if (version !== 'v2' || !payload || !signature || extra !== undefined || !safeEqualHex(signature, signSession(payload, secret))) return engine;
+    const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    const currentTime = now();
+    const issuedAt = session?.issuedAt;
+    const expiresAt = session?.expiresAt;
+    if (!Number.isSafeInteger(issuedAt) || !Number.isSafeInteger(expiresAt)
+      || issuedAt > currentTime + 60_000 || expiresAt <= currentTime
+      || expiresAt <= issuedAt || expiresAt - issuedAt !== LOCAL_FIXTURE_SESSION_MAX_AGE_MS) return engine;
+    if (engine.restoreLocalFixtureSession(session)) return engine;
   } catch {
     // Invalid local demo state intentionally falls back to the catalog default.
   }
   return engine;
 }
 
-function localFixtureSessionHeader(req, engine) {
-  const payload = Buffer.from(JSON.stringify(engine.exportLocalFixtureSession())).toString('base64url');
+function localFixtureSessionHeader(req, engine, now, secret) {
+  const issuedAt = now();
+  const payload = Buffer.from(JSON.stringify({ ...engine.exportLocalFixtureSession(), issuedAt, expiresAt: issuedAt + LOCAL_FIXTURE_SESSION_MAX_AGE_MS })).toString('base64url');
+  const value = `v2.${payload}.${signSession(payload, secret)}`;
   const isHttps = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
   return {
-    'Set-Cookie': `${LOCAL_FIXTURE_SESSION_COOKIE}=${payload}; Path=/; Max-Age=${LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS}; HttpOnly; SameSite=Lax${isHttps ? '; Secure' : ''}`
+    'Set-Cookie': `${LOCAL_FIXTURE_SESSION_COOKIE}=${value}; Path=/; Max-Age=${LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS}; HttpOnly; SameSite=Lax${isHttps || process.env.NODE_ENV === 'production' ? '; Secure' : ''}`
   };
 }
 
@@ -172,16 +205,16 @@ function staticIndex(res, publicDir, pathname) {
   return sendText(res, 200, fs.readFileSync(indexPath, 'utf8'), 'text/html; charset=utf-8');
 }
 
-export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR } = {}) {
+export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, sessionSecret = DEFAULT_SESSION_SECRET, now = Date.now } = {}) {
   const useBrowserLocalFixtureSession = !sharedEngine;
 
   return http.createServer(async (req, res) => {
-    const engine = sharedEngine || engineFromLocalFixtureSession(req);
+    const engine = sharedEngine || engineFromLocalFixtureSession(req, now, sessionSecret);
     const sendApiJson = (statusCode, data) => sendJson(
       res,
       statusCode,
       data,
-      useBrowserLocalFixtureSession ? localFixtureSessionHeader(req, engine) : undefined
+      useBrowserLocalFixtureSession ? localFixtureSessionHeader(req, engine, now, sessionSecret) : undefined
     );
 
     try {
@@ -232,7 +265,7 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR } = 
       if (pathname === '/api/reset') {
         if (req.method !== 'POST') return methodNotAllowed(res, ['POST', 'OPTIONS']);
         requireJsonContentType(req);
-        await parseJsonBody(req);
+        await parseJsonBody(req, MAX_BODY_BYTES, { requireEmptyObject: true });
         const reset = engine.resetLocalFixtureScenario();
         return sendApiJson(200, { success: true, executionMode: 'local-demo-fixture', reset });
       }
