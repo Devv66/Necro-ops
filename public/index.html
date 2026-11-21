@@ -30,6 +30,7 @@
     #statusBadge { display:table; margin:-10px auto 18px; padding:7px 11px; border:1px solid var(--red); border-radius:6px; background:rgba(255,0,84,.12); color:var(--red); font-size:11px; font-weight:800; letter-spacing:.45px; text-align:center; }
     .metrics { display:grid; grid-template-columns:1fr 1fr; gap:10px; } .metric { padding:14px 11px; border:1px solid var(--line); border-radius:8px; background:var(--surface-2); text-align:center; } .metric strong { display:block; font-size:23px; color:var(--red); } .metric span { display:block; margin-top:3px; color:var(--muted); font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; }
     button { width:100%; margin-top:17px; padding:13px 15px; border:0; border-radius:8px; background:linear-gradient(135deg,var(--purple),#7223b1); color:white; cursor:pointer; font-size:13px; font-weight:800; letter-spacing:.35px; transition:transform .16s ease, filter .16s ease; } button:hover:not(:disabled) { transform:translateY(-1px); filter:brightness(1.08); } button:disabled { opacity:.63; cursor:not-allowed; }
+    button.secondary { margin-top:9px; background:transparent; border:1px solid #2f9a89; color:var(--cyan); }
     .feed { margin-top:20px; padding:12px; min-height:132px; max-height:222px; overflow:auto; border:1px solid #1a2233; border-radius:7px; background:#090c16; font:11px/1.55 var(--mono); } .line { display:flex; gap:8px; margin-bottom:7px; } .tag { flex:0 0 auto; color:var(--purple); font-weight:800; } .text { color:var(--muted); }
     .ledger { display:flex; flex-direction:column; gap:10px; margin-top:19px; } .resource { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 15px; border:1px solid #202b3f; border-left:4px solid var(--red); border-radius:8px; background:#101626; } .resource.exorcised { border-left-color:var(--cyan); background:rgba(0,245,212,.045); } .resource h3 { margin:0 0 4px; font-size:14px; } .resource p { margin:0; color:#718096; font:11px/1.45 var(--mono); overflow-wrap:anywhere; } .type { display:inline-block; margin-left:7px; padding:2px 6px; border-radius:4px; background:#1a2233; color:#aab7ca; font-size:9px; vertical-align:2px; } .amount { flex:0 0 auto; text-align:right; } .amount strong { display:block; color:var(--red); font-size:16px; } .exorcised .amount strong { color:var(--cyan); } .amount span { display:block; color:#718096; font-size:10px; margin-top:3px; }
     .receipt { display:none; margin-top:18px; padding:15px; border:1px dashed var(--cyan); border-radius:8px; background:rgba(0,245,212,.04); } .receipt.active { display:block; } .receipt h3 { margin:0 0 9px; color:var(--cyan); font-size:13px; } .receipt div { color:var(--muted); font:11px/1.6 var(--mono); overflow-wrap:anywhere; } .receipt b { color:#d7e2ef; }
@@ -54,6 +55,7 @@
       <div id="statusBadge">LOADING LOCAL FIXTURES</div>
       <div class="metrics"><div class="metric"><strong id="wasteMonthText">—</strong><span>Modeled monthly cost</span></div><div class="metric"><strong id="wasteYearText">—</strong><span>Modeled annual projection</span></div></div>
       <button id="exorciseBtn" type="button">Run local fixture workflow</button>
+      <button id="resetBtn" class="secondary" type="button">Reset Local Fixture Scenario</button>
       <div id="uiError" class="error" role="alert"></div>
       <div class="eyebrow" style="margin-top:20px">LOCAL WORKFLOW EVENT FEED</div>
       <div id="crewFeed" class="feed" aria-live="polite"></div>
@@ -67,7 +69,7 @@
       <div id="receiptBox" class="receipt"><h3>LOCAL FIXTURE RECEIPT — UNSIGNED</h3><div id="receiptDetails"></div></div>
     </section>
   </main>
-  <div class="footer-note">The button runs a 100-trial local, seeded numerical property check before changing the simulator’s in-memory state. It does not invoke Kiro, AWS, CloudWatch, Cost Explorer, or a cloud-remediation API.</div>
+  <div class="footer-note">The workflow button runs a 100-trial local, seeded numerical property check before changing the simulator’s local state. Reset Local Fixture Scenario restores all five fixtures to the initial 88% risk and $1,050/month modeled state for this browser demo session. Neither action invokes Kiro, AWS, CloudWatch, Cost Explorer, or a cloud-remediation API.</div>
 
   <script>
     let telemetry = null;
@@ -137,7 +139,7 @@
     }
 
     async function triggerWorkflow() {
-      if (!telemetry || !telemetry.suggestedCleanupFixtureId) { $('uiError').textContent = 'No active local fixture is available to simulate.'; return; }
+      if (!telemetry || !telemetry.suggestedCleanupFixtureId) { $('uiError').textContent = 'No active local fixture is available to simulate. Use Reset Local Fixture Scenario to restore the demo.'; return; }
       const button = $('exorciseBtn'); button.disabled = true; button.textContent = 'Running local fixture workflow…'; $('uiError').textContent = '';
       try {
         addFeed('SYS', 'Requesting a local workflow for explicit fixture ' + telemetry.suggestedCleanupFixtureId + '.');
@@ -156,9 +158,22 @@
       finally { button.disabled = false; button.textContent = telemetry?.suggestedCleanupFixtureId ? 'Run next local fixture workflow' : 'No active local fixtures remain'; }
     }
 
+    async function resetLocalFixtureScenario() {
+      const button = $('resetBtn'); button.disabled = true; button.textContent = 'Resetting local fixture scenario…'; $('uiError').textContent = '';
+      try {
+        addFeed('SYS', 'Requesting reset of the local in-memory fixture scenario.');
+        const response = await fetch('/api/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const data = await readJson(response); const reset = data.reset;
+        renderTelemetry(reset.updatedScan);
+        $('receiptBox').classList.remove('active'); $('receiptDetails').replaceChildren();
+        addFeed('SYS', 'Reset complete: ' + reset.resetFixtureCount + ' local fixtures restored; ' + reset.clearedReceiptCount + ' local receipt(s) cleared. No AWS resource was changed.');
+      } catch (error) { $('uiError').textContent = error.message; addFeed('ERROR', error.message); }
+      finally { button.disabled = false; button.textContent = 'Reset Local Fixture Scenario'; }
+    }
+
     $('exorciseBtn').addEventListener('click', triggerWorkflow);
+    $('resetBtn').addEventListener('click', resetLocalFixtureScenario);
     loadState().catch(error => { $('uiError').textContent = error.message; addFeed('ERROR', 'Could not load local simulator state: ' + error.message); });
   </script>
 </body>
 </html>
-
