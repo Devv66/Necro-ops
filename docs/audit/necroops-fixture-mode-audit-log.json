@@ -19,10 +19,10 @@
     "package.json": "c0f07d366c1e5708f449b7402dcc54aec59b6214e0d4d69447a47a25a9f629c4",
     "package-lock.json": "a7b93d75a8416e2cb29808497ec48a674041c126499391efde70a24500a72455",
     "scripts/fixture-safety-gate.mjs": "1125d4753fce4a837fdb262304389b65e66a16967fa315f9fd1131555569831b",
-    "public/index.html": "10503e78fc91c3d6dc41de49729e0991caf4753609b1059ffbe0093c6a7581d1",
-    "src/engine.js": "6311ee2467c6f7915f325e69162b486d11cf77f99dba8faf92e09a43ec4bad39",
-    "src/server.js": "2e58b1a96041946124eb134810a37c0b48947f64aeb7b32e7c06b4246f7d1dcd",
-    "tests/necroops.test.mjs": "6e9639bc65edeaf81cfc78203a399f4a1c9ee5dd6e9144f4df046e1f3fb9c577",
+    "public/index.html": "7785b9901a0f223c7f34be48476fd9ba4ab09012ddd1b229191b7cbde09d79b9",
+    "src/engine.js": "c44abc6792f1ee1bdf1659b831f1aaebb8562d78357513e33e2e37e2ff477745",
+    "src/server.js": "241a46872be35256328717e38d18cf9dcb0353e2634fb4a3f841ebd1f5794ffc",
+    "tests/necroops.test.mjs": "129266b3305b08209b85fc92bf71c78a282668bd37d1f7e2675855a538438b5a",
     "README.md": "6a621abf62b8ec33a698f8a68692e790a07aa48c201e5660e5e73d62a70293c5"
   },
   "verificationCommands": [
