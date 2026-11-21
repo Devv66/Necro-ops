@@ -1,8 +1,10 @@
 {
-  "artifact": "NecroOps local-fixture audit record",
-  "schemaVersion": 3,
-  "scope": "Source inventory, deterministic local-fixture verification, dashboard/API boundary checks, and truthful-claim review for the public Kiroween 2026 source revision.",
+  "artifact": "NecroOps current local-fixture audit record",
+  "schemaVersion": 4,
+  "status": "CURRENT_FOR_THE_EXACT_SOURCE_INVENTORY_LISTED_BELOW",
+  "scope": "Source inventory, deterministic local-fixture verification, dashboard/API boundary checks, idempotency behavior, and truthful-claim review for the NecroOps source revision.",
   "executionBoundary": "All verified workflows use local in-memory fixtures. The audit did not connect to AWS, query CloudWatch or Cost Explorer, deploy a Lambda, execute Kiro Crew/CLI/Web, run a Kiro hook or power, or terminate an AWS resource.",
+  "sourceRevisionIdentity": "This SHA-256 inventory, not a Git commit ID, identifies the audited source exactly. A later commit or web upload must reproduce every listed file hash to be covered by this record.",
   "sourceFileSha256": {
     ".github/workflows/test.yml": "2d298647e272f14c566de834ff2ec50648b6914cd73a5758d348cb8d211c846c",
     ".gitignore": "7b7668078fdfe2d790ccae2c33043027160ecdd60784094a2061a9cf4a92f977",
@@ -17,45 +19,66 @@
     "package.json": "c0f07d366c1e5708f449b7402dcc54aec59b6214e0d4d69447a47a25a9f629c4",
     "package-lock.json": "a7b93d75a8416e2cb29808497ec48a674041c126499391efde70a24500a72455",
     "scripts/fixture-safety-gate.mjs": "1125d4753fce4a837fdb262304389b65e66a16967fa315f9fd1131555569831b",
-    "public/index.html": "b379962de1d885dc1e9f348306c7fc5f57179a0759f661251185d0f44bd9740d",
-    "src/engine.js": "4538f4a797d1bf6e687f8bfa7e2506aff8475d5a5087426282ed8fc4f27a4336",
-    "src/server.js": "4da5458f1de5815e6dc27c6a7cdbfd220e5c5429b368a023e38a388a2b2d831e",
-    "tests/necroops.test.mjs": "3a453603a2b3c011aaf3a956e34cde290835aa2970275104d11d0017d6b9477c",
+    "public/index.html": "10503e78fc91c3d6dc41de49729e0991caf4753609b1059ffbe0093c6a7581d1",
+    "src/engine.js": "6311ee2467c6f7915f325e69162b486d11cf77f99dba8faf92e09a43ec4bad39",
+    "src/server.js": "2e58b1a96041946124eb134810a37c0b48947f64aeb7b32e7c06b4246f7d1dcd",
+    "tests/necroops.test.mjs": "6e9639bc65edeaf81cfc78203a399f4a1c9ee5dd6e9144f4df046e1f3fb9c577",
     "README.md": "6a621abf62b8ec33a698f8a68692e790a07aa48c201e5660e5e73d62a70293c5"
   },
   "verificationCommands": [
     "npm ci --ignore-scripts",
     "npm run ci",
+    "node --test --experimental-test-coverage --test-reporter=spec tests/necroops.test.mjs",
     "PORT=3336 npm start",
     "GET /api/status",
-    "POST /api/kiro-crew/execute with explicit local fixture resourceId"
+    "POST /api/kiro-crew/execute with an explicit local fixture resourceId"
   ],
   "automatedTestResult": {
     "command": "npm run ci",
     "failures": 0,
-    "nestedChecksPassed": 16,
-    "tapSummaryTestsPassed": 17,
+    "nestedChecksPassed": 18,
+    "tapSummaryTestsPassed": 19,
     "standaloneGate": {
       "trialsRequested": 100,
       "trialsPassed": 100,
       "seed": 1313162066,
       "passed": true
     },
-    "note": "Node TAP counts the outer suite in addition to its 16 nested checks. The standalone gate is run after the TAP suite by npm run ci."
+    "note": "Node TAP counts the outer suite in addition to its 18 named nested checks. The standalone gate is run after the TAP suite by npm run ci."
+  },
+  "nativeCoverage": {
+    "command": "node --test --experimental-test-coverage --test-reporter=spec tests/necroops.test.mjs",
+    "allFiles": {
+      "linePercent": 98.67,
+      "branchPercent": 90.26,
+      "functionPercent": 97.59
+    },
+    "engine": {
+      "linePercent": 99.8,
+      "branchPercent": 90.79,
+      "functionPercent": 100
+    },
+    "server": {
+      "linePercent": 93.58,
+      "branchPercent": 85.14,
+      "functionPercent": 88.89
+    }
   },
   "manualLocalSmokeResult": {
-    "statusEndpoint": "GET /api/status returned local-demo-fixtures-no-aws-account, five active fixtures, risk index 88, and explicit target i-0f948a913bc89a712.",
-    "workflowEndpoint": "POST /api/kiro-crew/execute with the explicit EC2 fixture returned local-demo-fixture, a 100/100 local gate, a 64-character receipt digest, four remaining active fixtures, and risk index 65.",
-    "validationEndpoint": "POST /api/exorcise with an empty JSON object returned HTTP 400 RESOURCE_ID_REQUIRED.",
-    "dashboard": "GET / served the explicit LOCAL DEMO FIXTURES \u2014 NO AWS ACCOUNT CONNECTED boundary."
+    "statusEndpoint": "GET /api/status returned local-demo-fixtures-no-aws-account, five active fixtures, risk index 88, and an explicit target.",
+    "workflowEndpoint": "A first POST /api/kiro-crew/execute for the explicit EC2 fixture returned EXORCISED, mutated true, a 100/100 local gate, a 64-character receipt digest, four remaining active fixtures, and risk index 65.",
+    "idempotentWorkflowRetry": "A repeated POST for that already-exorcised fixture returned ALREADY_EXORCISED, mutated false, modeledMonthlyChangeUSD 0, localFixtureReceipt null, and a LOCAL_NO_OP_ALREADY_EXORCISED action. It did not claim a new state transition or rerun the safety gate.",
+    "validationEndpoint": "Object-only JSON, content type, body size, reason, resource ID, method, static-path, engine-error, and local idempotency paths were exercised by automated HTTP tests.",
+    "dashboard": "GET / served the explicit LOCAL DEMO FIXTURES — NO AWS ACCOUNT CONNECTED boundary."
   },
   "claimReview": {
-    "dashboard": "The dashboard fetches same-origin API state and returned receipts; it does not use timer-only simulated success.",
+    "dashboard": "The dashboard fetches same-origin API state and returned receipts; it does not use timer-only simulated success. It handles an idempotent no-op result without attempting to render a new receipt.",
+    "financialInvariant": "The legacy fee expression and the independent modern BigInt rational oracle agree across deterministic property trials. Generated modern fixture code is executed in test against the oracle. The accepted domain is safe integer cents from $0.32 through $15,000.00.",
     "kiroAssets": "Root .kiro assets exist and label themselves illustrative/unverified. Their presence is not runtime execution evidence.",
     "receipt": "Receipt digest is a SHA-256 integrity check over canonical local-fixture receipt data; it is unsigned and is not proof of a cloud action.",
     "license": "README, package.json, and LICENSE identify MIT."
   },
-  "verification": "Recalculate this artifact digest with: sha256sum docs/audit/necroops-fixture-mode-audit-log.json",
-  "localSourceCommitTested": "a2696b1e2b9b6bc8ec7821300f88d9e5968e7d63",
-  "publicationNote": "This audit pins the source with the per-file SHA-256 inventory below. A public repository commit created by uploading this source archive through a web UI may have a different Git commit ID; compare the listed file hashes rather than treating the local commit ID as a public commit reference."
+  "publicationNote": "This audit does not establish Devpost completion, public demo-video publication, public functional hosting, entrant eligibility, original-project timing, bonus eligibility, or actual Kiro runtime use. It records only the listed local-source evidence.",
+  "verification": "Recalculate this artifact digest with: sha256sum docs/audit/necroops-fixture-mode-audit-log.json"
 }
+
