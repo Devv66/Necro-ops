@@ -1,11 +1,28 @@
 {
-  "artifact": "NecroOps current local-fixture audit record",
-  "schemaVersion": 4,
-  "status": "CURRENT_FOR_THE_EXACT_SOURCE_INVENTORY_LISTED_BELOW",
-  "scope": "Source inventory, deterministic local-fixture verification, dashboard/API boundary checks, idempotency behavior, and truthful-claim review for the NecroOps source revision.",
+  "artifact": "NecroOps complete local-fixture audit record",
+  "schemaVersion": 5,
+  "status": "CURRENT_FOR_THE_COMPLETE_VERSION_CONTROLLED_SOURCE_INVENTORY_LISTED_BELOW",
+  "scope": "Complete version-controlled source inventory, deterministic local-fixture verification, reset behavior, dashboard/API boundary checks, idempotency behavior, deployment configuration review, and truthful-claim review.",
   "executionBoundary": "All verified workflows use local in-memory fixtures. The audit did not connect to AWS, query CloudWatch or Cost Explorer, deploy a Lambda, execute Kiro Crew/CLI/Web, run a Kiro hook or power, or terminate an AWS resource.",
-  "sourceRevisionIdentity": "This SHA-256 inventory, not a Git commit ID, identifies the audited source exactly. A later commit or web upload must reproduce every listed file hash to be covered by this record.",
-  "sourceFileSha256": {
+  "sourceRevisionBaseCommit": "23d5b1c617c9fb06136558d8879a1ee36aec6c06",
+  "sourceRevisionIdentity": "The normalized SHA-256 inventory below identifies the complete audited working tree independently of a Git commit. It includes every version-controlled/non-ignored project file except this audit artifact itself. The three visible digest-reference lines are normalized to a fixed token before hashing to avoid an unavoidable artifact-hash self-reference; npm run audit:verify checks both the inventory and the displayed artifact digest.",
+  "sourceInventory": {
+    "enumeration": "git ls-files --cached --others --exclude-standard, sorted",
+    "fileCount": 26,
+    "excludedOnlyBecauseSelfReferential": [
+      "docs/audit/necroops-fixture-mode-audit-log.json"
+    ],
+    "digestReferenceNormalization": {
+      "paths": [
+        "README.md",
+        "docs/DEVPOST_TRUTHFUL_REPLACEMENT.md",
+        "docs/DEVPOST_UPDATE_COPY.md"
+      ],
+      "replacementToken": "<AUDIT_ARTIFACT_SHA256>",
+      "rule": "Only the one visible Complete audit artifact SHA-256 line in each listed path is normalized before its file hash is calculated."
+    }
+  },
+  "sourceFileNormalizedSha256": {
     ".github/workflows/test.yml": "2d298647e272f14c566de834ff2ec50648b6914cd73a5758d348cb8d211c846c",
     ".gitignore": "7b7668078fdfe2d790ccae2c33043027160ecdd60784094a2061a9cf4a92f977",
     ".kiro/agents/exorcist-agent.json": "467b6f94aceb4eb442d7c410388a3e34e6d9a6958d125c35148a14068ae7e0d3",
@@ -16,69 +33,85 @@
     ".kiro/powers/aws-exorcist-power.json": "fa1b657289263402896da07da22e7654d1887d7b73731e3396f44df941dd81cd",
     ".kiro/specs/necroops-spec.json": "2834a972a87b88f2b436f3c542b21288ba541105027b0b2a5d2162d1c0f83c56",
     ".kiro/steering/agent-guidelines.md": "bab3408d55e6fba50ba3e8a1a380e30795ceed00ab3e47bec669f93fe3564825",
-    "package.json": "c0f07d366c1e5708f449b7402dcc54aec59b6214e0d4d69447a47a25a9f629c4",
-    "package-lock.json": "a7b93d75a8416e2cb29808497ec48a674041c126499391efde70a24500a72455",
+    "LICENSE": "65e3ba2a12096f9b76082310509ffbdc39d55fa9af71bd50f8d8f2f98b734b2c",
+    "README.md": "05d873af9c7d76e3496dbbb1ee8491da26d0e4e3eee566e0c8822c7ab8019b0a",
+    "api/index.js": "098ffbb3edf17bcefa69b4e32213505cad68731f05f42bd7f1b23351ee3759d9",
+    "docs/DEVPOST_TRUTHFUL_REPLACEMENT.md": "db95089c3a3aa5f2209f74183b6bfe1fb96c3acb48f4f92c688072d68cf8a178",
+    "docs/DEVPOST_UPDATE_COPY.md": "0a8946ef825716186fb26967da3c10e5771c1c26864347dd6323c65f167dd11c",
+    "docs/KIROWEEN_2026_BLOG_DRAFT.md": "67e9e573c6cfeca092a62491ae25c721111c25013720809f20875c04b78c3b74",
+    "docs/audit/necroops-audit-log.json": "8f7903da2286c8b8eac22642661a57f244c570ba6f374539d34fe442840a391b",
+    "package-lock.json": "0c091c05aadeb3672645122cb492ff4d83dd850b63d25072ea3bf893dc405ee4",
+    "package.json": "65f2aac4624eb6ff1224d889e10b7be1f75af9aeb26caa1c69cbd24a9cc32832",
+    "public/index.html": "33822c5b2275620ef54c69d1e07f547484425f4e51838f78a61e81327a7201a6",
     "scripts/fixture-safety-gate.mjs": "1125d4753fce4a837fdb262304389b65e66a16967fa315f9fd1131555569831b",
-    "public/index.html": "7785b9901a0f223c7f34be48476fd9ba4ab09012ddd1b229191b7cbde09d79b9",
-    "src/engine.js": "c44abc6792f1ee1bdf1659b831f1aaebb8562d78357513e33e2e37e2ff477745",
-    "src/server.js": "241a46872be35256328717e38d18cf9dcb0353e2634fb4a3f841ebd1f5794ffc",
-    "tests/necroops.test.mjs": "129266b3305b08209b85fc92bf71c78a282668bd37d1f7e2675855a538438b5a",
-    "README.md": "6a621abf62b8ec33a698f8a68692e790a07aa48c201e5660e5e73d62a70293c5"
+    "scripts/regenerate-audit.mjs": "911ff670d30a917964a97735bc0aa02ea9e67774f61865d7937d58cb4d68be2a",
+    "src/engine.js": "b22ee178360b6148320c66985eb68d5e1d3c0373b576f75ce496e5e2bafadad8",
+    "src/server.js": "541f3b583851e274d848984a2888d92f4a65ce87f4cc76db0bddd1a21c56b309",
+    "tests/necroops.test.mjs": "7b555d19709ff43d6ac01a2975184b2d0d0057c59c652c89d3f701af238bf605",
+    "vercel.json": "4d0604e6f87d51d16067027a84c5e35d6abfd0f55d29b4c830e1c43bf64a8b32"
   },
   "verificationCommands": [
     "npm ci --ignore-scripts",
     "npm run ci",
-    "node --test --experimental-test-coverage --test-reporter=spec tests/necroops.test.mjs",
-    "PORT=3336 npm start",
-    "GET /api/status",
-    "POST /api/kiro-crew/execute with an explicit local fixture resourceId"
+    "node --check api/index.js",
+    "node --check src/engine.js",
+    "node --check src/server.js",
+    "node --check scripts/regenerate-audit.mjs",
+    "node -e \"JSON.parse(require('fs').readFileSync('vercel.json','utf8'))\"",
+    "git diff --check",
+    "npm run audit:verify"
   ],
   "automatedTestResult": {
     "command": "npm run ci",
     "failures": 0,
-    "nestedChecksPassed": 18,
-    "tapSummaryTestsPassed": 19,
+    "nestedChecksPassed": 22,
+    "tapSummaryTestsPassed": 23,
     "standaloneGate": {
       "trialsRequested": 100,
       "trialsPassed": 100,
-      "seed": 1313162066,
       "passed": true
     },
-    "note": "Node TAP counts the outer suite in addition to its 18 named nested checks. The standalone gate is run after the TAP suite by npm run ci."
+    "note": "Node TAP counts the outer suite in addition to the named nested checks. The standalone gate runs after the TAP suite."
   },
-  "nativeCoverage": {
-    "command": "node --test --experimental-test-coverage --test-reporter=spec tests/necroops.test.mjs",
-    "allFiles": {
-      "linePercent": 98.67,
-      "branchPercent": 90.26,
-      "functionPercent": 97.59
+  "resetAndIdempotencySmoke": {
+    "firstWorkflow": {
+      "status": "EXORCISED",
+      "mutated": true
     },
-    "engine": {
-      "linePercent": 99.8,
-      "branchPercent": 90.79,
-      "functionPercent": 100
+    "immediateRetry": {
+      "status": "ALREADY_EXORCISED",
+      "mutated": false
     },
-    "server": {
-      "linePercent": 93.58,
-      "branchPercent": 85.14,
-      "functionPercent": 88.89
-    }
+    "reset": {
+      "resetFixtureCount": 5,
+      "clearedReceiptCount": 1,
+      "activeZombieCountAfterReset": 5,
+      "exorcisedCountAfterReset": 0,
+      "hauntedRiskIndexAfterReset": 88,
+      "totalMonthlyWasteUSDAfterReset": 1050,
+      "suggestedCleanupFixtureIdAfterReset": "i-0f948a913bc89a712"
+    },
+    "boundary": "The engine smoke covers local transitions. Browser-facing API tests additionally verify a validated HttpOnly local-fixture session cookie, so Vercel warm-memory state is not the source of browser demo state. This remains simulated local data, not cloud persistence."
   },
-  "manualLocalSmokeResult": {
-    "statusEndpoint": "GET /api/status returned local-demo-fixtures-no-aws-account, five active fixtures, risk index 88, and an explicit target.",
-    "workflowEndpoint": "A first POST /api/kiro-crew/execute for the explicit EC2 fixture returned EXORCISED, mutated true, a 100/100 local gate, a 64-character receipt digest, four remaining active fixtures, and risk index 65.",
-    "idempotentWorkflowRetry": "A repeated POST for that already-exorcised fixture returned ALREADY_EXORCISED, mutated false, modeledMonthlyChangeUSD 0, localFixtureReceipt null, and a LOCAL_NO_OP_ALREADY_EXORCISED action. It did not claim a new state transition or rerun the safety gate.",
-    "validationEndpoint": "Object-only JSON, content type, body size, reason, resource ID, method, static-path, engine-error, and local idempotency paths were exercised by automated HTTP tests.",
-    "dashboard": "GET / served the explicit LOCAL DEMO FIXTURES — NO AWS ACCOUNT CONNECTED boundary."
+  "deploymentConfigurationReview": {
+    "apiEntrypoint": "api/index.js is included in the complete inventory and passed syntax validation.",
+    "vercelConfiguration": "vercel.json is included in the complete inventory and passed JSON parsing. It retains framework: null, api/index.js includeFiles, and catch-all rewrite configuration.",
+    "resetRoute": "Tests exercise POST /api/reset, wrong method, wrong content type, reset state restoration, a restored subsequent workflow, and per-browser validated session-cookie continuity across fresh engine instances."
+  },
+  "staticBoundaryScan": {
+    "awsSdkHits": [],
+    "awsEnvironmentReadHits": [],
+    "credentialPatternHits": [],
+    "note": "These static checks support the stated local-fixture boundary; they are not a substitute for an external security review."
   },
   "claimReview": {
-    "dashboard": "The dashboard fetches same-origin API state and returned receipts; it does not use timer-only simulated success. It handles an idempotent no-op result without attempting to render a new receipt.",
-    "financialInvariant": "The legacy fee expression and the independent modern BigInt rational oracle agree across deterministic property trials. Generated modern fixture code is executed in test against the oracle. The accepted domain is safe integer cents from $0.32 through $15,000.00.",
+    "dashboard": "The dashboard fetches same-origin API state and returned workflow/reset data; it does not use timer-only success. Reset Local Fixture Scenario restores only local in-memory fixtures.",
+    "reset": "POST /api/reset takes an empty JSON object, accepts no external resource/account input, restores only the browser local-fixture session, and reports that no AWS resource was changed.",
+    "financialInvariant": "The legacy fee expression and independent modern BigInt rational oracle agree across deterministic local property trials. Generated modern fixture code is executed in test against the oracle.",
     "kiroAssets": "Root .kiro assets exist and label themselves illustrative/unverified. Their presence is not runtime execution evidence.",
     "receipt": "Receipt digest is a SHA-256 integrity check over canonical local-fixture receipt data; it is unsigned and is not proof of a cloud action.",
-    "license": "README, package.json, and LICENSE identify MIT."
+    "license": "Root LICENSE is MIT and the public repository identifies its MIT license."
   },
-  "publicationNote": "This audit does not establish Devpost completion, public demo-video publication, public functional hosting, entrant eligibility, original-project timing, bonus eligibility, or actual Kiro runtime use. It records only the listed local-source evidence.",
-  "verification": "Recalculate this artifact digest with: sha256sum docs/audit/necroops-fixture-mode-audit-log.json"
+  "publicationNote": "This audit does not establish Devpost completion, public demo-video publication, entrant eligibility, original-project timing, bonus eligibility, actual Kiro runtime use, or actual cloud actions. It records only the listed local-source evidence.",
+  "verification": "Run npm run audit:verify and sha256sum docs/audit/necroops-fixture-mode-audit-log.json from the exact source revision."
 }
-

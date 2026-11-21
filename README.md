@@ -102,7 +102,7 @@ The artifact path is:
 docs/audit/necroops-fixture-mode-audit-log.json
 ```
 
-**Complete audit artifact SHA-256:** `43416d0c675acedebb57dee83983ed0c1fee06e42e65d642c87144aec4db6d16`
+**Complete audit artifact SHA-256:** `2891c5beadbaede7a4e5a524f89e4ed86b279995d3a7215159b3a7580897ab6d`
 
 The inventory covers every version-controlled, non-ignored project file except the audit artifact itself (a file cannot include its own raw hash). To avoid a hash self-reference, the three documentation lines that repeat this artifact digest are normalized to a fixed token before their inventory hashes are calculated. `npm run audit:verify` checks the complete inventory, that normalization rule, and that the visible digest lines match the artifact bytes. Historical audits remain historical; they are not evidence for a later source revision.
 
