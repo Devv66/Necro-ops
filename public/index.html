@@ -144,8 +144,14 @@
         const response = await fetch('/api/kiro-crew/execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resourceId: telemetry.suggestedCleanupFixtureId }) });
         const data = await readJson(response); const workflow = data.orchestration;
         workflow.actionsTaken.forEach(action => addFeed(action.roleAsset, action.detail));
-        renderTelemetry(workflow.updatedScan); renderReceipt(workflow.localFixtureReceipt);
-        addFeed('SYS', 'Local state transition complete. No AWS resource was changed.');
+        renderTelemetry(workflow.updatedScan);
+        if (workflow.localFixtureReceipt) {
+          renderReceipt(workflow.localFixtureReceipt);
+          addFeed('SYS', 'Local state transition complete. No AWS resource was changed.');
+        } else {
+          $('receiptBox').classList.remove('active'); $('receiptDetails').replaceChildren();
+          addFeed('SYS', 'No new local state transition was performed. No AWS resource was changed.');
+        }
       } catch (error) { $('uiError').textContent = error.message; addFeed('ERROR', error.message); }
       finally { button.disabled = false; button.textContent = telemetry?.suggestedCleanupFixtureId ? 'Run next local fixture workflow' : 'No active local fixtures remain'; }
     }
@@ -155,3 +161,4 @@
   </script>
 </body>
 </html>
+

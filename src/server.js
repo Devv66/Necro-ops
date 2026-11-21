@@ -21,7 +21,8 @@ function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-    'X-Content-Type-Options': 'nosniff'
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer'
   });
   res.end(JSON.stringify(data, null, 2));
 }
@@ -29,7 +30,9 @@ function sendJson(res, statusCode, data) {
 function sendText(res, statusCode, text, contentType = 'text/plain; charset=utf-8') {
   res.writeHead(statusCode, {
     'Content-Type': contentType,
-    'X-Content-Type-Options': 'nosniff'
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer'
   });
   res.end(text);
 }
@@ -116,7 +119,13 @@ function toHttpError(error) {
 }
 
 function methodNotAllowed(res, allowed) {
-  res.writeHead(405, { Allow: allowed.join(', '), 'Content-Type': 'application/json; charset=utf-8' });
+  res.writeHead(405, {
+    Allow: allowed.join(', '),
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer'
+  });
   res.end(JSON.stringify({ error: 'Method not allowed.', code: 'METHOD_NOT_ALLOWED' }));
 }
 
@@ -136,7 +145,12 @@ export function createServer({ engine = new NecroOpsEngine(), publicDir = PUBLIC
       const { pathname } = parsedUrl;
 
       if (req.method === 'OPTIONS') {
-        res.writeHead(204, { Allow: 'GET, POST, OPTIONS' });
+        res.writeHead(204, {
+          Allow: 'GET, POST, OPTIONS',
+          'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+          'Referrer-Policy': 'no-referrer'
+        });
         return res.end();
       }
 
@@ -202,3 +216,4 @@ export function startServer(port = Number(process.env.PORT || 3000)) {
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
   startServer();
 }
+

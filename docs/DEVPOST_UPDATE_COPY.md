@@ -2,21 +2,18 @@
 
 > Apply these edits only after the complete repaired source (including the root `.kiro/` tree) is publicly visible at `https://github.com/Devv66/Necro-ops`. Save the Devpost draft; do not make a final submission without reviewing the public URLs.
 
-## 1. Replace the generic Try it out link
+## 1. Replace the generic Try it out link only after the truthful replacement video is public
 
-Replace:
+Do **not** use the historical video URL `https://www.youtube.com/watch?v=G-QZp8XgSVc`; its AWS/Kiro claims conflict with the current local-fixture source boundary.
 
-```text
-http://www.youtube.com
-```
-
-With exactly:
+Publish the reviewed 60 FPS local-fixture demo on YouTube first. Then place that exact newly public YouTube URL in both Devpost fields:
 
 ```text
-https://www.youtube.com/watch?v=G-QZp8XgSVc
+Demo video
+Try it out
 ```
 
-The submitted-video field already contains the real URL; the visible **Try it out** link must match it.
+The two fields must be identical. Do not submit a placeholder, a Drive URL in a YouTube field, or the historical video URL.
 
 ## 2. Replace the old static hash statement
 
@@ -28,7 +25,7 @@ Remove the old claimed action-certificate hash, especially:
 
 Use this exact audit statement instead:
 
-> **Verifiable local-fixture audit record:** `npm run ci` completed with 0 failures on the audited source inventory. Node reported 16 nested checks and 17 TAP tests including its outer wrapper; the separate local safety gate passed 100/100 seeded trials. The audit did not connect to AWS, run Kiro Crew/CLI/Web, execute a Kiro hook or power, deploy a Lambda, or terminate an AWS resource. The audit pins the code with per-file SHA-256 values, so it remains verifiable even if the public repository receives a different Git commit ID through web upload. The SHA-256 digest of `docs/audit/necroops-fixture-mode-audit-log.json` is `39963b8a95a2d4a35452911764f8b904071b05a855649c4ee73a1b9a78c3a506`. Verify it with `sha256sum docs/audit/necroops-fixture-mode-audit-log.json`.
+> **Verifiable local-fixture audit record:** `npm run ci` completed with 0 failures on the audited source inventory. Node reported 18 nested checks and 19 TAP tests including its outer wrapper; the separate local safety gate passed 100/100 seeded trials. The audit did not connect to AWS, run Kiro Crew/CLI/Web, execute a Kiro hook or power, deploy a Lambda, or terminate an AWS resource. The audit pins the code with per-file SHA-256 values, so it remains verifiable even if the public repository receives a different Git commit ID through web upload. The SHA-256 digest of `docs/audit/necroops-fixture-mode-audit-log.json` is `f72a3b184cd7b125277aeb86e0b8cb49dc97842cc08428001d450781ec0d3964`. Verify it with `sha256sum docs/audit/necroops-fixture-mode-audit-log.json`.
 
 ## 3. Replace the entire Story
 
@@ -43,7 +40,7 @@ The Story now matches the repaired code: local fixtures, explicit API-backed das
 ## 4. Source and video links
 
 - **Source repository:** `https://github.com/Devv66/Necro-ops`
-- **Demo video / Try it out:** `https://www.youtube.com/watch?v=G-QZp8XgSVc`
+- **Demo video / Try it out:** exact URL of the newly public, reviewed, truthful 60 FPS YouTube upload. Do not use `G-QZp8XgSVc`.
 
 ## 5. Bonus Blog
 
@@ -55,3 +52,4 @@ Publish `docs/KIROWEEN_2026_BLOG_DRAFT.md` as a public third-party post during t
 - live Kiro Crew, CLI, Web, hook, power, or agent execution;
 - an actual signed cloud-action certificate; or
 - Kiro bonus-track eligibility.
+

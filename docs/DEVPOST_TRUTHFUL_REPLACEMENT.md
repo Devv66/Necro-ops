@@ -101,7 +101,7 @@ For destructive infrastructure workflows, a polished simulation is not the same 
 
 ## Links
 
-- **Demo video:** https://www.youtube.com/watch?v=G-QZp8XgSVc
+- **Demo video:** Add the exact URL of the newly public, reviewed, truthful 60 FPS YouTube upload before submitting. Do not use the historical `G-QZp8XgSVc` video; its claims conflict with this source boundary.
 - **Source repository:** https://github.com/Devv66/Necro-ops
 
 ## Built With
@@ -115,3 +115,4 @@ For destructive infrastructure workflows, a polished simulation is not the same 
 - live Kiro hook or power execution;
 - a signed action certificate; or
 - Kiro bonus-track eligibility.
+
