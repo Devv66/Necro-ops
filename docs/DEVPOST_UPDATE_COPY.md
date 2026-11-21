@@ -25,7 +25,7 @@ Remove the old claimed action-certificate hash, especially:
 
 Use this exact audit statement instead:
 
-> **Verifiable local-fixture audit record:** `npm run ci` completed with 0 failures on the audited source inventory. Node reported 18 nested checks and 19 TAP tests including its outer wrapper; the separate local safety gate passed 100/100 seeded trials. The audit did not connect to AWS, run Kiro Crew/CLI/Web, execute a Kiro hook or power, deploy a Lambda, or terminate an AWS resource. The audit pins the code with per-file SHA-256 values, so it remains verifiable even if the public repository receives a different Git commit ID through web upload. The SHA-256 digest of `docs/audit/necroops-fixture-mode-audit-log.json` is `2dda6362472c74a79ec85e3c30af511aad4632eec0cd01a86bc217c408fff481`. Verify it with `sha256sum docs/audit/necroops-fixture-mode-audit-log.json`.
+> **Verifiable local-fixture audit record:** `npm run ci` completed with 0 failures on the audited source inventory. Node reported 18 nested checks and 19 TAP tests including its outer wrapper; the separate local safety gate passed 100/100 seeded trials. The audit did not connect to AWS, run Kiro Crew/CLI/Web, execute a Kiro hook or power, deploy a Lambda, or terminate an AWS resource. The audit pins the code with per-file SHA-256 values, so it remains verifiable even if the public repository receives a different Git commit ID through web upload. The SHA-256 digest of `docs/audit/necroops-fixture-mode-audit-log.json` is `f72a3b184cd7b125277aeb86e0b8cb49dc97842cc08428001d450781ec0d3964`. Verify it with `sha256sum docs/audit/necroops-fixture-mode-audit-log.json`.
 
 ## 3. Replace the entire Story
 
