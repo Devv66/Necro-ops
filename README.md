@@ -17,7 +17,8 @@ The server and dashboard operate on a finite fixture catalog. The identifiers, c
 - a local modeled-cost and risk scan across five fixture workloads;
 - fixture-specific JavaScript examples for two supplied legacy-code fixtures;
 - a deterministic, seeded 100-trial local numerical property gate;
-- an in-memory, idempotent simulated cleanup transition; and
+- an in-memory, idempotent simulated cleanup transition;
+- an explicit reset that restores all five local fixtures to the initial demo scenario; and
 - an unsigned SHA-256 digest over a canonical local-fixture receipt.
 
 The initial local scenario totals **$1,050/month**. This is fixture data, not an AWS bill. The dashboard retrieves state from its own same-origin local API; it does not use timer-only success states.
@@ -32,6 +33,12 @@ The local gate uses integer cents. For 100 seeded fixture values that can cover 
 Amounts that cannot cover the modeled fee are rejected. If this gate fails, the engine does not change the in-memory resource state or append a receipt.
 
 This is a code-level property for a demo fixture—not approval to mutate cloud infrastructure.
+
+## Reset the local demo scenario
+
+The dashboard includes **Reset Local Fixture Scenario**. It sends `POST /api/reset` with an empty JSON object and restores the five local fixtures to the initial **88%** risk index and **$1,050/month** modeled total. It does not reset, read, or change AWS, Kiro, or any external account.
+
+For deterministic Vercel behavior, the server stores only the IDs of simulated local transitions in a four-hour, `HttpOnly`, `SameSite=Lax` browser-session cookie and reconstructs the fixture engine on each API request. The cookie contains no receipt, fixture content, credential, cloud-account data, or external-resource identifier. Clearing/expiring it returns the browser to the default local scenario; it is not cloud persistence.
 
 ## Kiro-oriented project assets
 
@@ -75,20 +82,29 @@ It returns a nonzero exit code if the local gate fails. The `.kiro/hooks/pre-pur
 - integer-cent math, boundary cases, reproducible seeds, and forced-gate-failure atomicity;
 - receipt digest recomputation and tamper detection;
 - root `.kiro` asset paths and their runtime-boundary metadata;
-- dashboard source using same-origin API calls; and
-- isolated HTTP handling for success, malformed input, oversized bodies, missing routes, explicit mutation targets, and no permissive CORS header.
+- dashboard source using same-origin API calls and its explicit reset control; and
+- isolated HTTP handling for success, malformed input, oversized bodies, missing routes, explicit mutation targets, local reset, and no permissive CORS header.
 
 GitHub Actions is configured for Node 20 and 22. Read the actual workflow result rather than relying on a static badge.
 
 ## Public audit artifact
 
-After each source remediation, regenerate and publish an audit record that names the exact commit and test results. The current artifact path is:
+After each source remediation, regenerate and publish the audit record with:
+
+```bash
+npm run audit:refresh
+npm run audit:verify
+```
+
+The artifact path is:
 
 ```text
 docs/audit/necroops-fixture-mode-audit-log.json
 ```
 
-Use `sha256sum docs/audit/necroops-fixture-mode-audit-log.json` to verify the digest printed in the artifact and in the Devpost Story. Historical audits remain historical; they are not evidence for a later source revision.
+**Complete audit artifact SHA-256:** `43416d0c675acedebb57dee83983ed0c1fee06e42e65d642c87144aec4db6d16`
+
+The inventory covers every version-controlled, non-ignored project file except the audit artifact itself (a file cannot include its own raw hash). To avoid a hash self-reference, the three documentation lines that repeat this artifact digest are normalized to a fixed token before their inventory hashes are calculated. `npm run audit:verify` checks the complete inventory, that normalization rule, and that the visible digest lines match the artifact bytes. Historical audits remain historical; they are not evidence for a later source revision.
 
 ## Before any live claim
 
