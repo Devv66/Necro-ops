@@ -12,6 +12,7 @@ import {
   ZOMBIE_CATALOG
 } from '../src/engine.js';
 import { createServer } from '../src/server.js';
+import vercelHandler from '../api/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,6 +28,40 @@ function startIsolatedServer(options = {}) {
         server,
         baseUrl: `http://127.0.0.1:${address.port}`
       });
+    });
+  });
+}
+
+async function startBrowserSessionServer(options = {}) {
+  const server = createServer(options);
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      resolve({
+        server,
+        baseUrl: `http://127.0.0.1:${address.port}`
+      });
+    });
+  });
+}
+
+async function startVercelAdapterServer() {
+  const server = http.createServer((req, res) => {
+    const original = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const rewritten = new URLSearchParams(original.search);
+    rewritten.set('__necroops_path', original.pathname.replace(/^\//, ''));
+    req.url = `/api?${rewritten.toString()}`;
+    vercelHandler(req, res).catch(error => {
+      if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: error.message }));
+    });
+  });
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      resolve({ server, baseUrl: `http://127.0.0.1:${address.port}` });
     });
   });
 }
@@ -187,6 +222,38 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(repeat.executionMode, 'local-demo-fixture');
   });
 
+  await t.test('explicit local reset restores the complete initial fixture scenario', () => {
+    engine.exorciseZombieResource('i-0f948a913bc89a712');
+    engine.exorciseZombieResource('vol-084920491823abf10');
+    const reset = engine.resetLocalFixtureScenario();
+
+    assert.equal(reset.executionMode, 'local-demo-fixture');
+    assert.equal(reset.resetFixtureCount, 5);
+    assert.equal(reset.clearedReceiptCount, 2);
+    assert.match(reset.message, /No AWS resource was changed/);
+    assert.equal(reset.updatedScan.activeZombieCount, 5);
+    assert.equal(reset.updatedScan.exorcisedCount, 0);
+    assert.equal(reset.updatedScan.hauntedRiskIndex, 88);
+    assert.equal(reset.updatedScan.totalMonthlyWasteUSD, 1050);
+    assert.equal(reset.updatedScan.suggestedCleanupFixtureId, 'i-0f948a913bc89a712');
+    assert.equal(reset.updatedScan.resources.find(resource => resource.id === 'i-0f948a913bc89a712').status, 'HAUNTED_ZOMBIE');
+  });
+
+  await t.test('local-fixture session restores only validated simulated transition IDs', () => {
+    engine.exorciseZombieResource('i-0f948a913bc89a712');
+    const session = engine.exportLocalFixtureSession();
+    assert.deepEqual(session, { version: 1, exorcisedFixtureIds: ['i-0f948a913bc89a712'] });
+
+    const restored = new NecroOpsEngine();
+    assert.equal(restored.restoreLocalFixtureSession(session), true);
+    assert.equal(restored.scanCloudPerimeter().activeZombieCount, 4);
+    assert.equal(restored.runKiroCrewOrchestration('i-0f948a913bc89a712').status, 'ALREADY_EXORCISED');
+
+    const rejected = new NecroOpsEngine();
+    assert.equal(rejected.restoreLocalFixtureSession({ version: 1, exorcisedFixtureIds: ['not-a-fixture'] }), false);
+    assert.equal(rejected.scanCloudPerimeter().activeZombieCount, 5);
+  });
+
   await t.test('orchestration reports a truthful, zero-change idempotent retry', () => {
     assert.throws(() => engine.runKiroCrewOrchestration(), { code: 'RESOURCE_ID_REQUIRED' });
     const workflow = engine.runKiroCrewOrchestration('i-0f948a913bc89a712');
@@ -245,8 +312,11 @@ test('NecroOps local fixture suite', async (t) => {
     const dashboard = fs.readFileSync(path.join(projectRoot, 'public/index.html'), 'utf8');
     assert.match(dashboard, /fetch\('\/api\/status'\)/);
     assert.match(dashboard, /fetch\('\/api\/kiro-crew\/execute'/);
+    assert.match(dashboard, /fetch\('\/api\/reset'/);
+    assert.match(dashboard, /Reset Local Fixture Scenario/);
     assert.doesNotMatch(dashboard, /setTimeout\(/);
     assert.match(dashboard, /NO AWS ACCOUNT CONNECTED/);
+    assert.match(dashboard, /for this browser demo session/);
   });
 
   await t.test('HTTP server provides isolated, explicit, same-origin local-fixture API behavior', async () => {
@@ -314,6 +384,119 @@ test('NecroOps local fixture suite', async (t) => {
       assert.equal(repeatedWorkflow.body.orchestration.modeledMonthlyChangeUSD, 0);
       assert.equal(repeatedWorkflow.body.orchestration.localFixtureReceipt, null);
       assert.equal(repeatedWorkflow.body.orchestration.actionsTaken.at(-1).action, 'LOCAL_NO_OP_ALREADY_EXORCISED');
+
+      const resetWrongMethod = await request(baseUrl, '/api/reset');
+      assert.equal(resetWrongMethod.response.status, 405);
+      assert.equal(resetWrongMethod.response.headers.get('allow'), 'POST, OPTIONS');
+
+      const resetWrongContentType = await request(baseUrl, '/api/reset', { method: 'POST', body: '{}' });
+      assert.equal(resetWrongContentType.response.status, 415);
+      assert.equal(resetWrongContentType.body.code, 'UNSUPPORTED_MEDIA_TYPE');
+
+      const reset = await request(baseUrl, '/api/reset', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}'
+      });
+      assert.equal(reset.response.status, 200);
+      assert.equal(reset.body.executionMode, 'local-demo-fixture');
+      assert.equal(reset.body.reset.resetFixtureCount, 5);
+      assert.equal(reset.body.reset.clearedReceiptCount, 1);
+      assert.equal(reset.body.reset.updatedScan.activeZombieCount, 5);
+      assert.equal(reset.body.reset.updatedScan.exorcisedCount, 0);
+      assert.equal(reset.body.reset.updatedScan.hauntedRiskIndex, 88);
+      assert.equal(reset.body.reset.updatedScan.totalMonthlyWasteUSD, 1050);
+      assert.equal(reset.body.reset.updatedScan.suggestedCleanupFixtureId, 'i-0f948a913bc89a712');
+
+      const restoredWorkflow = await request(baseUrl, '/api/kiro-crew/execute', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+      });
+      assert.equal(restoredWorkflow.response.status, 200);
+      assert.equal(restoredWorkflow.body.orchestration.status, 'EXORCISED');
+      assert.equal(restoredWorkflow.body.orchestration.mutated, true);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test('default HTTP server keeps each browser local-fixture scenario deterministic through a validated HttpOnly session cookie', async () => {
+    const { server, baseUrl } = await startBrowserSessionServer();
+    try {
+      const initial = await request(baseUrl, '/api/status');
+      let cookie = initial.response.headers.get('set-cookie')?.split(';')[0];
+      assert.match(cookie || '', /^necroops_local_fixture_state=/);
+      assert.match(initial.response.headers.get('set-cookie') || '', /HttpOnly/);
+      assert.match(initial.response.headers.get('set-cookie') || '', /SameSite=Lax/);
+      assert.equal(initial.body.telemetry.activeZombieCount, 5);
+      assert.equal(initial.body.telemetry.hauntedRiskIndex, 88);
+
+      const workflow = await request(baseUrl, '/api/kiro-crew/execute', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie },
+        body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+      });
+      cookie = workflow.response.headers.get('set-cookie')?.split(';')[0];
+      assert.equal(workflow.body.orchestration.status, 'EXORCISED');
+
+      const persistedStatus = await request(baseUrl, '/api/status', { headers: { cookie } });
+      assert.equal(persistedStatus.body.telemetry.activeZombieCount, 4);
+      assert.equal(persistedStatus.body.telemetry.exorcisedCount, 1);
+
+      const reset = await request(baseUrl, '/api/reset', {
+        method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}'
+      });
+      cookie = reset.response.headers.get('set-cookie')?.split(';')[0];
+      assert.equal(reset.body.reset.clearedReceiptCount, 1);
+      assert.equal(reset.body.reset.updatedScan.activeZombieCount, 5);
+      assert.equal(reset.body.reset.updatedScan.hauntedRiskIndex, 88);
+
+      const restoredStatus = await request(baseUrl, '/api/status', { headers: { cookie } });
+      assert.equal(restoredStatus.body.telemetry.activeZombieCount, 5);
+      assert.equal(restoredStatus.body.telemetry.exorcisedCount, 0);
+      assert.equal(restoredStatus.body.telemetry.totalMonthlyWasteUSD, 1050);
+
+      const invalidCookie = await request(baseUrl, '/api/status', { headers: { cookie: 'necroops_local_fixture_state=not-valid-json' } });
+      assert.equal(invalidCookie.body.telemetry.activeZombieCount, 5);
+      assert.match(invalidCookie.response.headers.get('set-cookie') || '', /^necroops_local_fixture_state=/);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test('Vercel catch-all adapter preserves root, reset, and browser-session fixture behavior', async () => {
+    const { server, baseUrl } = await startVercelAdapterServer();
+    const httpsHeaders = { 'x-forwarded-proto': 'https' };
+    try {
+      const root = await request(baseUrl, '/', { headers: httpsHeaders });
+      assert.equal(root.response.status, 200);
+      assert.match(root.body, /Reset Local Fixture Scenario/);
+
+      const initial = await request(baseUrl, '/api/status', { headers: httpsHeaders });
+      let cookie = initial.response.headers.get('set-cookie')?.split(';')[0];
+      assert.equal(initial.response.status, 200);
+      assert.equal(initial.body.telemetry.activeZombieCount, 5);
+      assert.match(initial.response.headers.get('set-cookie') || '', /Secure/);
+
+      const workflow = await request(baseUrl, '/api/kiro-crew/execute', {
+        method: 'POST',
+        headers: { ...httpsHeaders, 'content-type': 'application/json', cookie },
+        body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+      });
+      cookie = workflow.response.headers.get('set-cookie')?.split(';')[0];
+      assert.equal(workflow.body.orchestration.status, 'EXORCISED');
+
+      const reset = await request(baseUrl, '/api/reset', {
+        method: 'POST',
+        headers: { ...httpsHeaders, 'content-type': 'application/json', cookie }, body: '{}'
+      });
+      cookie = reset.response.headers.get('set-cookie')?.split(';')[0];
+      assert.equal(reset.response.status, 200);
+      assert.equal(reset.body.reset.updatedScan.hauntedRiskIndex, 88);
+      assert.equal(reset.body.reset.updatedScan.totalMonthlyWasteUSD, 1050);
+
+      const restored = await request(baseUrl, '/api/status', { headers: { ...httpsHeaders, cookie } });
+      assert.equal(restored.body.telemetry.activeZombieCount, 5);
+      assert.equal(restored.body.telemetry.exorcisedCount, 0);
     } finally {
       await stopServer(server);
     }
