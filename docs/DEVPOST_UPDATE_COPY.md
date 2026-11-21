@@ -2,21 +2,18 @@
 
 > Apply these edits only after the complete repaired source (including the root `.kiro/` tree) is publicly visible at `https://github.com/Devv66/Necro-ops`. Save the Devpost draft; do not make a final submission without reviewing the public URLs.
 
-## 1. Replace the generic Try it out link
+## 1. Replace the generic Try it out link only after the truthful replacement video is public
 
-Replace:
+Do **not** use the historical video URL `https://www.youtube.com/watch?v=G-QZp8XgSVc`; its AWS/Kiro claims conflict with the current local-fixture source boundary.
 
-```text
-http://www.youtube.com
-```
-
-With exactly:
+Publish the reviewed 60 FPS local-fixture demo on YouTube first. Then place that exact newly public YouTube URL in both Devpost fields:
 
 ```text
-https://www.youtube.com/watch?v=G-QZp8XgSVc
+Demo video
+Try it out
 ```
 
-The submitted-video field already contains the real URL; the visible **Try it out** link must match it.
+The two fields must be identical. Do not submit a placeholder, a Drive URL in a YouTube field, or the historical video URL.
 
 ## 2. Replace the old static hash statement
 
@@ -43,7 +40,7 @@ The Story now matches the repaired code: local fixtures, explicit API-backed das
 ## 4. Source and video links
 
 - **Source repository:** `https://github.com/Devv66/Necro-ops`
-- **Demo video / Try it out:** `https://www.youtube.com/watch?v=G-QZp8XgSVc`
+- **Demo video / Try it out:** exact URL of the newly public, reviewed, truthful 60 FPS YouTube upload. Do not use `G-QZp8XgSVc`.
 
 ## 5. Bonus Blog
 
@@ -55,3 +52,4 @@ Publish `docs/KIROWEEN_2026_BLOG_DRAFT.md` as a public third-party post during t
 - live Kiro Crew, CLI, Web, hook, power, or agent execution;
 - an actual signed cloud-action certificate; or
 - Kiro bonus-track eligibility.
+
