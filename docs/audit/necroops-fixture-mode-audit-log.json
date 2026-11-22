@@ -4,11 +4,11 @@
   "status": "CURRENT_FOR_THE_COMPLETE_VERSION_CONTROLLED_SOURCE_INVENTORY_LISTED_BELOW",
   "scope": "Complete version-controlled source inventory, deterministic local-fixture verification, reset behavior, dashboard/API boundary checks, idempotency behavior, deployment configuration review, and truthful-claim review.",
   "executionBoundary": "All verified workflows use local in-memory fixtures. The audit did not connect to AWS, query CloudWatch or Cost Explorer, deploy a Lambda, execute Kiro Crew/CLI/Web, run a Kiro hook or power, or terminate an AWS resource.",
-  "sourceRevisionBaseCommit": "cbad171108eb6c9c9ac783b137a8811dfd318eb7",
+  "sourceRevisionBaseCommit": "b55c655f1ff2eb2b5f875dc47099fcf2e006c09c",
   "sourceRevisionIdentity": "The normalized SHA-256 inventory below identifies the complete audited working tree independently of a Git commit. It includes every version-controlled/non-ignored project file except this audit artifact itself. The three visible digest-reference lines are normalized to a fixed token before hashing to avoid an unavoidable artifact-hash self-reference; npm run audit:verify checks both the inventory and the displayed artifact digest.",
   "sourceInventory": {
     "enumeration": "git ls-files --cached --others --exclude-standard, sorted",
-    "fileCount": 26,
+    "fileCount": 28,
     "excludedOnlyBecauseSelfReferential": [
       "docs/audit/necroops-fixture-mode-audit-log.json"
     ],
@@ -36,6 +36,8 @@
     "LICENSE": "6ad80541cc027b67797c62dee4f8c94d17c4e554bedf9704e498c2399f6345e7",
     "README.md": "b5447d7fd3be3b854fd5e81e43e777af92f76db2cf41d9e12df1511c3f4b3da0",
     "api/index.js": "636d0e2ab4133fb408cf03e563e56d9490630e410bc671ffe3f7e75053e10f03",
+    "docs/DEMO_RECORDING_GUIDE.md": "311a9ed13fb06cb344c0a7ee9cf9dff95d50d0b419c83c97d10ef78c8abf44fe",
+    "docs/DEVPOST_FINAL_CHECKLIST.md": "d0ba66591386cacede7a50b9bf7690ce212dab5976c4aa7eb6366b8a4e6007af",
     "docs/DEVPOST_TRUTHFUL_REPLACEMENT.md": "28e951142bc7e00e1c5b7246ed983d6f642e2145182af3911abb6add79487ca4",
     "docs/DEVPOST_UPDATE_COPY.md": "1b0491bea586c36ce1005c3e406954cd6184a10e203bd5a2498ae423dfc358dc",
     "docs/KIROWEEN_2026_BLOG_DRAFT.md": "e884cfdab8c2d9aae5558380265adc05d9e5f54ac35bc5f11877ad6e67df5e59",
