@@ -77,12 +77,12 @@ function runLocalResetSmoke() {
     const scan = engine.scanCloudPerimeter();
     const valid = first.status === 'EXORCISED' && first.mutated === true
       && retry.status === 'ALREADY_EXORCISED' && retry.mutated === false
-      && reset.resetFixtureCount === 5 && reset.clearedReceiptCount === 1
+      && reset.resetFixtureCount === 5 && reset.clearedTransitionCount === 1
       && scan.activeZombieCount === 5 && scan.exorcisedCount === 0
       && scan.hauntedRiskIndex === 88 && scan.totalMonthlyWasteUSD === 1050
       && scan.suggestedCleanupFixtureId === 'i-0f948a913bc89a712';
     if (!valid) process.exit(2);
-    console.log(JSON.stringify({ firstStatus:first.status, retryStatus:retry.status, resetFixtureCount:reset.resetFixtureCount, clearedReceiptCount:reset.clearedReceiptCount, scan }));
+    console.log(JSON.stringify({ firstStatus:first.status, retryStatus:retry.status, resetFixtureCount:reset.resetFixtureCount, clearedTransitionCount:reset.clearedTransitionCount, scan }));
   `;
   return JSON.parse(run(process.execPath, ['--input-type=module', '--eval', program]).trim());
 }
@@ -154,7 +154,7 @@ function buildAuditRecord({ ciOutput, resetSmoke }) {
       immediateRetry: { status: resetSmoke.retryStatus, mutated: false },
       reset: {
         resetFixtureCount: resetSmoke.resetFixtureCount,
-        clearedReceiptCount: resetSmoke.clearedReceiptCount,
+        clearedTransitionCount: resetSmoke.clearedTransitionCount,
         activeZombieCountAfterReset: resetSmoke.scan.activeZombieCount,
         exorcisedCountAfterReset: resetSmoke.scan.exorcisedCount,
         hauntedRiskIndexAfterReset: resetSmoke.scan.hauntedRiskIndex,

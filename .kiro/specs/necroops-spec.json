@@ -48,7 +48,7 @@
       },
       {
         "id": "INV-STATE-01",
-        "description": "A sequential rerun using the latest reconstructed local browser session returns ALREADY_EXORCISED without a second receipt. This local stateless demo does not claim transactional coordination for simultaneous duplicate HTTP submissions.",
+        "description": "A sequential rerun using the latest reconstructed local browser session returns ALREADY_EXORCISED without a second receipt. This local stateless demo does not claim transactional coordination for simultaneous duplicate HTTP submissions, and an earlier still-valid cookie can replay its earlier local snapshot until expiry.",
         "strict": true
       }
     ]

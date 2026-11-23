@@ -153,6 +153,10 @@ function seededRandom(seed) {
   };
 }
 
+function localWorkflowSessionId() {
+  return `LOCAL-SIM-${crypto.randomUUID()}`;
+}
+
 /**
  * Reject values that would make JavaScript number arithmetic ambiguous before
  * either local fee implementation is evaluated.
@@ -234,7 +238,9 @@ export class NecroOpsEngine {
    * only simulated receipts held in this process's memory.
    */
   resetLocalFixtureScenario() {
-    const clearedReceiptCount = this.exorcisedLog.length;
+    // Browser sessions reconstruct only transitioned fixture IDs. This is a
+    // count of local state transitions reset, not a count of persisted receipts.
+    const clearedTransitionCount = this.exorcisedLog.length;
     this.zombies = clone(ZOMBIE_CATALOG);
     this.exorcisedLog = [];
     const updatedScan = this.scanCloudPerimeter();
@@ -243,7 +249,7 @@ export class NecroOpsEngine {
       executionMode: 'local-demo-fixture',
       resetAt: new Date().toISOString(),
       resetFixtureCount: this.zombies.length,
-      clearedReceiptCount,
+      clearedTransitionCount,
       message: 'Restored the five local demo fixtures to their initial in-memory scenario. No AWS resource was changed.',
       updatedScan
     };
@@ -519,7 +525,7 @@ export class NecroOpsEngine {
         status: 'ALREADY_EXORCISED',
         mutated: false,
         executionMode: 'local-demo-fixture',
-        workflowSessionId: `LOCAL-SIM-${Date.now()}`,
+        workflowSessionId: localWorkflowSessionId(),
         orchestrationTime: new Date().toISOString(),
         roleAssetsReferenced: ['Reaper', 'Exorcist'],
         actionsTaken,
@@ -555,7 +561,7 @@ export class NecroOpsEngine {
       status: 'EXORCISED',
       mutated: true,
       executionMode: 'local-demo-fixture',
-      workflowSessionId: `LOCAL-SIM-${Date.now()}`,
+      workflowSessionId: localWorkflowSessionId(),
       orchestrationTime: new Date().toISOString(),
       roleAssetsReferenced: ['Reaper', 'Necromancer', 'Exorcist'],
       actionsTaken,

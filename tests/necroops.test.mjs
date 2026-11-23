@@ -266,7 +266,7 @@ test('NecroOps local fixture suite', async (t) => {
 
     assert.equal(reset.executionMode, 'local-demo-fixture');
     assert.equal(reset.resetFixtureCount, 5);
-    assert.equal(reset.clearedReceiptCount, 2);
+    assert.equal(reset.clearedTransitionCount, 2);
     assert.match(reset.message, /No AWS resource was changed/);
     assert.equal(reset.updatedScan.activeZombieCount, 5);
     assert.equal(reset.updatedScan.exorcisedCount, 0);
@@ -311,6 +311,16 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(repeat.resurrectionSummary, null);
     assert.equal(repeat.actionsTaken.at(-1).action, 'LOCAL_NO_OP_ALREADY_EXORCISED');
     assert.match(repeat.actionsTaken.at(-1).detail, /No local state transition was performed/);
+  });
+
+  await t.test('workflow execution IDs are UUID-backed and unique across rapid local workflows', () => {
+    const workflows = Array.from({ length: 24 }, () => new NecroOpsEngine().runKiroCrewOrchestration('i-0f948a913bc89a712'));
+    const workflowIds = workflows.map(workflow => workflow.workflowSessionId);
+
+    assert.equal(new Set(workflowIds).size, workflowIds.length);
+    for (const workflowId of workflowIds) {
+      assert.match(workflowId, /^LOCAL-SIM-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    }
   });
 
   await t.test('all required Kiro-oriented assets are tracked at the correct root paths', () => {
@@ -360,6 +370,12 @@ test('NecroOps local fixture suite', async (t) => {
       assert.match(dashboard, new RegExp(`${status}:`));
     }
     assert.match(dashboard, /riskColor\(telemetry\.status\)/);
+    assert.match(dashboard, /function syncWorkflowButton\(availableLabel = 'Run local fixture workflow'\)/);
+    assert.match(dashboard, /renderTelemetry\(data\.telemetry\);\s+syncWorkflowButton\(\);/);
+    assert.match(dashboard, /clearedTransitionCount/);
+    assert.doesNotMatch(dashboard, /local receipt\(s\) cleared/);
+    assert.match(dashboard, /main \{[^}]*min-width:0/);
+    assert.match(dashboard, /@media\(max-width:400px\).*flex-wrap:wrap/s);
   });
 
   await t.test('browser-session signing configuration rejects an undersized explicit secret', () => {
@@ -541,7 +557,7 @@ test('NecroOps local fixture suite', async (t) => {
       assert.equal(reset.response.status, 200);
       assert.equal(reset.body.executionMode, 'local-demo-fixture');
       assert.equal(reset.body.reset.resetFixtureCount, 5);
-      assert.equal(reset.body.reset.clearedReceiptCount, 1);
+      assert.equal(reset.body.reset.clearedTransitionCount, 1);
       assert.equal(reset.body.reset.updatedScan.activeZombieCount, 5);
       assert.equal(reset.body.reset.updatedScan.exorcisedCount, 0);
       assert.equal(reset.body.reset.updatedScan.hauntedRiskIndex, 88);
@@ -625,7 +641,7 @@ test('NecroOps local fixture suite', async (t) => {
         method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}'
       });
       cookie = reset.response.headers.get('set-cookie')?.split(';')[0];
-      assert.equal(reset.body.reset.clearedReceiptCount, 1);
+      assert.equal(reset.body.reset.clearedTransitionCount, 1);
       assert.equal(reset.body.reset.updatedScan.activeZombieCount, 5);
       assert.equal(reset.body.reset.updatedScan.hauntedRiskIndex, 88);
 
@@ -633,6 +649,61 @@ test('NecroOps local fixture suite', async (t) => {
       assert.equal(restoredStatus.body.telemetry.activeZombieCount, 5);
       assert.equal(restoredStatus.body.telemetry.exorcisedCount, 0);
       assert.equal(restoredStatus.body.telemetry.totalMonthlyWasteUSD, 1050);
+    } finally {
+      await stopServer(server);
+    }
+  });
+
+  await t.test('browser-session regression coverage records the disclosed stale-cookie and parallel snapshot limitation', async () => {
+    const { server, baseUrl } = await startBrowserSessionServer();
+    try {
+      const initial = await request(baseUrl, '/api/status');
+      const initialCookie = initial.response.headers.get('set-cookie')?.split(';')[0];
+      assert.match(initialCookie || '', /^necroops_local_fixture_state=/);
+
+      const workflowRequest = resourceId => request(baseUrl, '/api/kiro-crew/execute', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: initialCookie },
+        body: JSON.stringify({ resourceId })
+      });
+
+      const [sameFixtureLeft, sameFixtureRight] = await Promise.all([
+        workflowRequest('i-0f948a913bc89a712'),
+        workflowRequest('i-0f948a913bc89a712')
+      ]);
+      assert.equal(sameFixtureLeft.body.orchestration.status, 'EXORCISED');
+      assert.equal(sameFixtureRight.body.orchestration.status, 'EXORCISED');
+      assert.equal(sameFixtureLeft.body.orchestration.mutated, true);
+      assert.equal(sameFixtureRight.body.orchestration.mutated, true);
+      assert.notEqual(
+        sameFixtureLeft.body.orchestration.localFixtureReceipt.receiptId,
+        sameFixtureRight.body.orchestration.localFixtureReceipt.receiptId
+      );
+
+      const [differentFixtureLeft, differentFixtureRight] = await Promise.all([
+        workflowRequest('i-0f948a913bc89a712'),
+        workflowRequest('vol-084920491823abf10')
+      ]);
+      assert.equal(differentFixtureLeft.body.orchestration.updatedScan.activeZombieCount, 4);
+      assert.equal(differentFixtureRight.body.orchestration.updatedScan.activeZombieCount, 4);
+      assert.equal(
+        differentFixtureLeft.body.orchestration.updatedScan.resources.find(resource => resource.id === 'vol-084920491823abf10').status,
+        'ORPHANED_GHOST'
+      );
+      assert.equal(
+        differentFixtureRight.body.orchestration.updatedScan.resources.find(resource => resource.id === 'i-0f948a913bc89a712').status,
+        'HAUNTED_ZOMBIE'
+      );
+
+      const staleSnapshot = await request(baseUrl, '/api/status', { headers: { cookie: initialCookie } });
+      assert.equal(staleSnapshot.body.telemetry.activeZombieCount, 5);
+      assert.equal(staleSnapshot.body.telemetry.hauntedRiskIndex, 88);
+
+      const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
+      const spec = JSON.parse(fs.readFileSync(path.join(projectRoot, '.kiro/specs/necroops-spec.json'), 'utf8'));
+      assert.match(readme, /does not transactionally coordinate simultaneous duplicate HTTP submissions/);
+      assert.match(readme, /earlier cookie can also replay its own earlier local snapshot/i);
+      assert.match(spec.entities.safetyInvariants.find(invariant => invariant.id === 'INV-STATE-01').description, /earlier still-valid cookie can replay/i);
     } finally {
       await stopServer(server);
     }
