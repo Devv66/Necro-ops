@@ -18,10 +18,10 @@ NecroOps is a **local demonstration prototype**. Its standalone Node server uses
 
 Within that local scenario, it:
 
-1. totals modeled monthly cost and risk values for five fixture workloads;
+1. totals modeled monthly cost and classifies risk for five fixture workloads with local bands at 80, 40, and 20;
 2. prepares different JavaScript examples for the supplied payment-worker and billing-webhook fixtures;
 3. runs 100 seeded integer-cent property trials before allowing a simulated cleanup path;
-4. rejects malformed requests, omitted mutation target IDs, and invalid fixture values;
+4. rejects malformed requests, omitted mutation target IDs, invalid fixture values, and non-empty reset payloads;
 5. changes only in-memory fixture state after the gate passes;
 6. provides a clearly labelled **Reset Local Fixture Scenario** control that restores all five local fixtures to their initial 88% risk and $1,050/month modeled state; and
 7. creates an **unsigned local-fixture receipt** with a SHA-256 digest covering one captured timestamp, target, modeled amount, reason, and gate summary.
@@ -44,7 +44,7 @@ This is a code-level safety property for the local simulator. It is not evidence
 
 ## Dashboard and HTTP boundary
 
-The dashboard loads the ledger and metrics from the simulator’s same-origin API and sends an explicit fixture target for its local workflow call. Its clearly labelled **Reset Local Fixture Scenario** button calls `POST /api/reset` and restores the five fixture records to the initial local state. To make this browser demo deterministic across Vercel function instances, the server reconstructs the local engine from a four-hour `HttpOnly`, `SameSite=Lax` cookie that contains only validated IDs of simulated local transitions. It contains no receipt, fixture payload, credential, AWS account data, or external-resource state. It renders returned receipt data and errors instead of showing timer-only success. The server applies a JSON body limit, validates mutation input, uses explicit API 4xx responses, returns API 404s as JSON, and does not enable permissive cross-origin access.
+The dashboard loads the ledger and metrics from the simulator’s same-origin API and sends an explicit fixture target for its local workflow call. Its clearly labelled **Reset Local Fixture Scenario** button calls `POST /api/reset` with `{}` and restores the five fixture records to the initial local state; non-empty reset objects are rejected before state changes. To make this browser demo deterministic across Vercel function instances, production uses a server-held `NECROOPS_LOCAL_FIXTURE_SESSION_SECRET` to HMAC-sign a fixed four-hour `HttpOnly`, `SameSite=Lax` cookie that contains only validated IDs of simulated local transitions plus signed issuance and expiry timestamps. The server validates the HMAC and temporal claims before restoring state; missing, legacy-version, malformed, tampered, or expired cookies fall back to the default scenario and receive a fresh default-session cookie. Production and Vercel responses always add `Secure`; local HTTP development remains usable without it. The cookie contains no receipt, fixture payload, credential, AWS account data, or external-resource state. Sequential requests using the latest valid cookie receive an idempotent no-op for an already transitioned fixture; this stateless demo does not claim transactional coordination for simultaneous duplicate HTTP submissions. It renders returned receipt data and errors instead of showing timer-only success. The server applies a JSON body limit, validates exact JSON media types, uses explicit API 4xx responses, returns API 404s as JSON, and does not enable permissive cross-origin access.
 
 ## Kiro-oriented assets and spec-driven work
 
@@ -75,7 +75,7 @@ The current public audit artifact is:
 docs/audit/necroops-fixture-mode-audit-log.json
 ```
 
-**Complete audit artifact SHA-256:** `22bf6d06e9ed98db5a68b72895993f298121d357fe5618329fbee79fab7b1312`
+**Complete audit artifact SHA-256:** `fb572358ec06a96f32df764c4cdfbdc313a3a4cd882e89988167dbdf0bcd1172`
 
 This digest is refreshed from the exact source revision by `npm run audit:refresh`. The complete inventory includes `api/index.js` and `vercel.json`, and `npm run audit:verify` checks it before submission.
 

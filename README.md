@@ -14,10 +14,10 @@ The server and dashboard operate on a finite fixture catalog. The identifiers, c
 
 ## What the prototype actually demonstrates
 
-- a local modeled-cost and risk scan across five fixture workloads;
+- a local modeled-cost and four-band risk scan across five fixture workloads, with thresholds at 80, 40, and 20;
 - fixture-specific JavaScript examples for two supplied legacy-code fixtures;
 - a deterministic, seeded 100-trial local numerical property gate;
-- an in-memory, idempotent simulated cleanup transition;
+- an in-memory simulated cleanup transition with sequential retry idempotency;
 - an explicit reset that restores all five local fixtures to the initial demo scenario; and
 - an unsigned SHA-256 digest over a canonical local-fixture receipt.
 
@@ -36,9 +36,21 @@ This is a code-level property for a demo fixture—not approval to mutate cloud 
 
 ## Reset the local demo scenario
 
-The dashboard includes **Reset Local Fixture Scenario**. It sends `POST /api/reset` with an empty JSON object and restores the five local fixtures to the initial **88%** risk index and **$1,050/month** modeled total. It does not reset, read, or change AWS, Kiro, or any external account.
+The dashboard includes **Reset Local Fixture Scenario**. It sends `POST /api/reset` with the exact empty JSON object `{}` and restores the five local fixtures to the initial **88%** risk index and **$1,050/month** modeled total. Non-empty reset objects and invalid JSON shapes are rejected before any fixture state changes. The route does not reset, read, or change AWS, Kiro, or any external account.
 
-For deterministic browser sessions, the server stores only the IDs of simulated local transitions in an HMAC-SHA256 v2 cookie with signed `issuedAt`/`expiresAt` values and a four-hour lifetime. The cookie is `HttpOnly` and `SameSite=Lax`; `Secure` is set for HTTPS and production. Local HTTP development remains compatible. The default signing key is ephemeral per process; deployments that need session continuity across server instances must provide `NECROOPS_SESSION_SECRET` through deployment environment configuration, never a committed file. The cookie contains no receipt, fixture content, credential, cloud-account data, or external-resource identifier. Clearing/expiring it returns the browser to the default local scenario; it is not cloud persistence.
+For deterministic Vercel behavior, production requires a server-held `NECROOPS_LOCAL_FIXTURE_SESSION_SECRET` of at least 32 UTF-8 bytes. The server HMAC-signs a fixed four-hour, `HttpOnly`, `SameSite=Lax` cookie containing only simulated transition IDs plus signed `issuedAt` and `expiresAt` timestamps, then reconstructs the fixture engine on each API request. The server validates the HMAC and temporal fields before trusting the payload; a valid session keeps its original four-hour expiry rather than extending it on ordinary requests. The cookie contains no receipt, fixture content, credential, cloud-account data, or external-resource identifier. A missing, unsupported-version, invalid, tampered, expired, or cleared cookie returns the browser to the default local scenario and receives a fresh default-session cookie; it is not cloud persistence. Production and Vercel responses always add the `Secure` flag. Local HTTP development remains usable without `Secure`, while forwarded HTTPS development requests also receive it. Local development without that variable uses a process-local random signing key, so its cookies intentionally expire when the server restarts.
+
+The local cleanup is idempotent for **sequential requests that use the latest valid cookie returned by the preceding request**. This stateless browser-demo design does not transactionally coordinate simultaneous duplicate HTTP submissions; it must not be presented as a durable distributed idempotency system.
+
+### Production session-signing configuration
+
+Before deploying to Vercel, add a **Production** environment variable named `NECROOPS_LOCAL_FIXTURE_SESSION_SECRET` with a private value of at least 32 UTF-8 bytes. Generate a value locally, for example:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+Do not commit or publish that value. Production intentionally fails closed when the variable is missing or too short; a process-local development key is used only outside production.
 
 ## Kiro-oriented project assets
 
@@ -83,7 +95,8 @@ It returns a nonzero exit code if the local gate fails. The `.kiro/hooks/pre-pur
 - receipt digest recomputation and tamper detection;
 - root `.kiro` asset paths and their runtime-boundary metadata;
 - dashboard source using same-origin API calls and its explicit reset control; and
-- isolated HTTP handling for success, malformed input, oversized bodies, missing routes, explicit mutation targets, local reset, and no permissive CORS header.
+- isolated HTTP handling for success, malformed input, oversized bodies, missing routes, explicit mutation targets, exact-empty-object local reset, and no permissive CORS header; and
+- all four risk-status bands plus signed-cookie tampering, temporal expiry, legacy-version fallback, and production/Vercel `Secure` cookie behavior.
 
 GitHub Actions is configured for Node 20 and 22. Read the actual workflow result rather than relying on a static badge.
 
@@ -102,9 +115,9 @@ The artifact path is:
 docs/audit/necroops-fixture-mode-audit-log.json
 ```
 
-**Complete audit artifact SHA-256:** `22bf6d06e9ed98db5a68b72895993f298121d357fe5618329fbee79fab7b1312`
+**Complete audit artifact SHA-256:** `fb572358ec06a96f32df764c4cdfbdc313a3a4cd882e89988167dbdf0bcd1172`
 
-The inventory covers every version-controlled, non-ignored project file except the audit artifact itself (a file cannot include its own raw hash). To avoid a hash self-reference, the three documentation lines that repeat this artifact digest are normalized to a fixed token before their inventory hashes are calculated. `npm run audit:verify` checks the complete inventory, that normalization rule, and that the visible digest lines match the artifact bytes. Historical audits remain historical; they are not evidence for a later source revision.
+The inventory covers every version-controlled, non-ignored project file except the audit artifact itself (a file cannot include its own raw hash). To avoid a hash self-reference, the three documentation lines that repeat this artifact digest are normalized to a fixed token before their inventory hashes are calculated. `npm run audit:verify` checks the complete inventory, that normalization rule, and that the visible digest lines match the artifact bytes. The artifact's `generationBaseCommit` records the checked-out generator context before the publication commit; the normalized inventory, not that pre-commit field, identifies the audited tree. Historical audits remain historical; they are not evidence for a later source revision.
 
 ## Before any live claim
 

@@ -1,7 +1,7 @@
 import { createServer } from '../src/server.js';
 
 // Existing Node server hi request behavior ka single source hai.
-// Local fixture state har API request par validated browser-session cookie se rebuild hoti hai;
+// Local fixture state har API request par HMAC-signed browser-session cookie se rebuild hoti hai;
 // Vercel warm-memory state demo behavior ka source nahi hai.
 const localFixtureServer = createServer();
 const ROUTE_PARAM = '__necroops_path';

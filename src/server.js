@@ -1,5 +1,5 @@
-import http from 'node:http';
 import crypto from 'node:crypto';
+import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,13 +10,9 @@ const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const MAX_BODY_BYTES = 32 * 1024;
 const LOCAL_FIXTURE_SESSION_COOKIE = 'necroops_local_fixture_state';
+const LOCAL_FIXTURE_SESSION_VERSION = 2;
 const LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS = 4 * 60 * 60;
-const LOCAL_FIXTURE_SESSION_MAX_AGE_MS = LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS * 1000;
-const configuredSessionSecret = process.env.NECROOPS_SESSION_SECRET;
-if (configuredSessionSecret && Buffer.byteLength(configuredSessionSecret) < 32) {
-  throw new Error('NECROOPS_SESSION_SECRET must contain at least 32 bytes.');
-}
-const DEFAULT_SESSION_SECRET = configuredSessionSecret || crypto.randomBytes(32);
+const MIN_LOCAL_FIXTURE_SESSION_SECRET_BYTES = 32;
 
 class HttpError extends Error {
   constructor(statusCode, message, code = 'REQUEST_ERROR') {
@@ -24,6 +20,82 @@ class HttpError extends Error {
     this.statusCode = statusCode;
     this.code = code;
   }
+}
+
+function configuredLocalFixtureSessionSecret(configuredSecret) {
+  const candidate = configuredSecret ?? process.env.NECROOPS_LOCAL_FIXTURE_SESSION_SECRET;
+  const isBuffer = Buffer.isBuffer(candidate);
+  const byteLength = isBuffer ? candidate.length : (typeof candidate === 'string' ? Buffer.byteLength(candidate, 'utf8') : 0);
+
+  if (candidate !== undefined && candidate !== '') {
+    if (byteLength < MIN_LOCAL_FIXTURE_SESSION_SECRET_BYTES) {
+      throw new Error(`NECROOPS_LOCAL_FIXTURE_SESSION_SECRET must contain at least ${MIN_LOCAL_FIXTURE_SESSION_SECRET_BYTES} UTF-8 bytes.`);
+    }
+    return Buffer.from(candidate);
+  }
+
+  if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
+    throw new Error('NECROOPS_LOCAL_FIXTURE_SESSION_SECRET is required in production so local-fixture session cookies remain signed across instances.');
+  }
+
+  // Local development/test fallback: it prevents client-side forgery for this
+  // process, while deliberately invalidating cookies after a server restart.
+  return crypto.randomBytes(MIN_LOCAL_FIXTURE_SESSION_SECRET_BYTES);
+}
+
+function signLocalFixtureSessionPayload(payload, signingKey) {
+  return crypto.createHmac('sha256', signingKey).update(payload).digest('base64url');
+}
+
+function unixSeconds(now) {
+  const currentTime = now();
+  if (!Number.isSafeInteger(currentTime) || currentTime < 0) {
+    throw new Error('Local fixture session clock must return a non-negative safe integer timestamp in milliseconds.');
+  }
+  return Math.floor(currentTime / 1000);
+}
+
+function decodeVerifiedLocalFixtureSession(encoded, signingKey) {
+  if (typeof encoded !== 'string') return null;
+  const [payload, signature, ...extraParts] = encoded.split('.');
+  if (!payload || !signature || extraParts.length !== 0) return null;
+
+  const expectedSignature = crypto.createHmac('sha256', signingKey).update(payload).digest();
+  let suppliedSignature;
+  try {
+    suppliedSignature = Buffer.from(signature, 'base64url');
+  } catch {
+    return null;
+  }
+  if (suppliedSignature.length !== expectedSignature.length || !crypto.timingSafeEqual(suppliedSignature, expectedSignature)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function validLocalFixtureSession(envelope, now) {
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) return null;
+  if (envelope.version !== LOCAL_FIXTURE_SESSION_VERSION) return null;
+  if (!Number.isSafeInteger(envelope.issuedAt) || !Number.isSafeInteger(envelope.expiresAt)) return null;
+  if (envelope.issuedAt < 0 || envelope.expiresAt <= envelope.issuedAt) return null;
+  if (envelope.expiresAt - envelope.issuedAt !== LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS) return null;
+
+  const currentTime = unixSeconds(now);
+  if (envelope.issuedAt > currentTime || envelope.expiresAt <= currentTime) return null;
+  if (!Array.isArray(envelope.exorcisedFixtureIds)) return null;
+
+  return envelope;
+}
+
+function decodeSignedLocalFixtureSession(encoded, signingKey, now) {
+  // HMAC verification deliberately occurs before JSON fields are trusted.
+  const envelope = decodeVerifiedLocalFixtureSession(encoded, signingKey);
+  return validLocalFixtureSession(envelope, now);
 }
 
 function sendJson(res, statusCode, data, extraHeaders = {}) {
@@ -47,7 +119,7 @@ function sendText(res, statusCode, text, contentType = 'text/plain; charset=utf-
   res.end(text);
 }
 
-function parseJsonBody(req, limit = MAX_BODY_BYTES, { requireEmptyObject = false } = {}) {
+function parseJsonBody(req, { limit = MAX_BODY_BYTES, allowEmptyBody = true } = {}) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
@@ -75,11 +147,11 @@ function parseJsonBody(req, limit = MAX_BODY_BYTES, { requireEmptyObject = false
       if (settled) return;
       const raw = Buffer.concat(chunks).toString('utf8');
       if (raw.length === 0) {
-        settled = true;
-        if (requireEmptyObject) {
-          reject(new HttpError(400, 'Reset requests must contain a literal empty JSON object.', 'INVALID_RESET_BODY'));
+        if (!allowEmptyBody) {
+          fail(new HttpError(400, 'Reset requests must contain an empty JSON object.', 'RESET_BODY_MUST_BE_EMPTY_OBJECT'));
           return;
         }
+        settled = true;
         resolve({});
         return;
       }
@@ -87,9 +159,6 @@ function parseJsonBody(req, limit = MAX_BODY_BYTES, { requireEmptyObject = false
         const parsed = JSON.parse(raw);
         if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
           throw new HttpError(400, 'JSON request body must be an object.', 'INVALID_JSON_SHAPE');
-        }
-        if (requireEmptyObject && Object.keys(parsed).length !== 0) {
-          throw new HttpError(400, 'Reset requests must contain a literal empty JSON object.', 'INVALID_RESET_BODY');
         }
         settled = true;
         resolve(parsed);
@@ -103,9 +172,15 @@ function parseJsonBody(req, limit = MAX_BODY_BYTES, { requireEmptyObject = false
 }
 
 function requireJsonContentType(req) {
-  const contentType = req.headers['content-type'] || '';
-  if (!contentType.toLowerCase().startsWith('application/json')) {
+  const mediaType = String(req.headers['content-type'] || '').split(';', 1)[0].trim().toLowerCase();
+  if (mediaType !== 'application/json') {
     throw new HttpError(415, 'Mutation requests must use Content-Type: application/json.', 'UNSUPPORTED_MEDIA_TYPE');
+  }
+}
+
+function requireEmptyObject(body) {
+  if (Object.keys(body).length !== 0) {
+    throw new HttpError(400, 'Reset requests must contain an empty JSON object.', 'RESET_BODY_MUST_BE_EMPTY_OBJECT');
   }
 }
 
@@ -155,44 +230,48 @@ function parseCookies(req) {
   }).filter(([name]) => name));
 }
 
-function safeEqualHex(left, right) {
-  if (typeof left !== 'string' || typeof right !== 'string' || !/^[a-f0-9]{64}$/.test(left) || !/^[a-f0-9]{64}$/.test(right)) return false;
-  return crypto.timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'));
-}
-
-function signSession(encodedPayload, secret) {
-  return crypto.createHmac('sha256', secret).update(`v2.${encodedPayload}`).digest('hex');
-}
-
-function engineFromLocalFixtureSession(req, now, secret) {
+function engineFromLocalFixtureSession(req, signingKey, now) {
   const engine = new NecroOpsEngine();
   const encoded = parseCookies(req)[LOCAL_FIXTURE_SESSION_COOKIE];
-  if (!encoded) return engine;
+  if (!encoded) return { engine, session: null };
 
-  try {
-    const [version, payload, signature, extra] = encoded.split('.');
-    if (version !== 'v2' || !payload || !signature || extra !== undefined || !safeEqualHex(signature, signSession(payload, secret))) return engine;
-    const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-    const currentTime = now();
-    const issuedAt = session?.issuedAt;
-    const expiresAt = session?.expiresAt;
-    if (!Number.isSafeInteger(issuedAt) || !Number.isSafeInteger(expiresAt)
-      || issuedAt > currentTime + 60_000 || expiresAt <= currentTime
-      || expiresAt <= issuedAt || expiresAt - issuedAt !== LOCAL_FIXTURE_SESSION_MAX_AGE_MS) return engine;
-    if (engine.restoreLocalFixtureSession(session)) return engine;
-  } catch {
-    // Invalid local demo state intentionally falls back to the catalog default.
+  const session = decodeSignedLocalFixtureSession(encoded, signingKey, now);
+  if (session && engine.restoreLocalFixtureSession({
+    version: 1,
+    exorcisedFixtureIds: session.exorcisedFixtureIds
+  })) {
+    return { engine, session };
   }
-  return engine;
+
+  // An absent, expired, legacy-version, malformed, tampered, or semantically
+  // rejected session intentionally falls back to the default catalog; no
+  // client-supplied state is trusted.
+  return { engine, session: null };
 }
 
-function localFixtureSessionHeader(req, engine, now, secret) {
-  const issuedAt = now();
-  const payload = Buffer.from(JSON.stringify({ ...engine.exportLocalFixtureSession(), issuedAt, expiresAt: issuedAt + LOCAL_FIXTURE_SESSION_MAX_AGE_MS })).toString('base64url');
-  const value = `v2.${payload}.${signSession(payload, secret)}`;
-  const isHttps = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
+function localFixtureSessionHeader(req, engine, signingKey, now, productionRuntime, existingSession) {
+  const currentTime = unixSeconds(now);
+  const session = existingSession
+    ? {
+        version: LOCAL_FIXTURE_SESSION_VERSION,
+        issuedAt: existingSession.issuedAt,
+        expiresAt: existingSession.expiresAt,
+        exorcisedFixtureIds: engine.exportLocalFixtureSession().exorcisedFixtureIds
+      }
+    : {
+        version: LOCAL_FIXTURE_SESSION_VERSION,
+        issuedAt: currentTime,
+        expiresAt: currentTime + LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS,
+        exorcisedFixtureIds: engine.exportLocalFixtureSession().exorcisedFixtureIds
+      };
+  const payload = Buffer.from(JSON.stringify(session)).toString('base64url');
+  const signature = signLocalFixtureSessionPayload(payload, signingKey);
+  const isHttps = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase() === 'https';
+  const secureCookie = productionRuntime || isHttps;
+  const remainingLifetime = session.expiresAt - currentTime;
+
   return {
-    'Set-Cookie': `${LOCAL_FIXTURE_SESSION_COOKIE}=${value}; Path=/; Max-Age=${LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS}; HttpOnly; SameSite=Lax${isHttps || process.env.NODE_ENV === 'production' ? '; Secure' : ''}`
+    'Set-Cookie': `${LOCAL_FIXTURE_SESSION_COOKIE}=${payload}.${signature}; Path=/; Max-Age=${remainingLifetime}; HttpOnly; SameSite=Lax${secureCookie ? '; Secure' : ''}`
   };
 }
 
@@ -205,16 +284,25 @@ function staticIndex(res, publicDir, pathname) {
   return sendText(res, 200, fs.readFileSync(indexPath, 'utf8'), 'text/html; charset=utf-8');
 }
 
-export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, sessionSecret = DEFAULT_SESSION_SECRET, now = Date.now } = {}) {
+export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, sessionSecret, now = Date.now } = {}) {
   const useBrowserLocalFixtureSession = !sharedEngine;
+  const localFixtureSessionSigningKey = useBrowserLocalFixtureSession
+    ? configuredLocalFixtureSessionSecret(sessionSecret)
+    : null;
+  const productionRuntime = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
 
   return http.createServer(async (req, res) => {
-    const engine = sharedEngine || engineFromLocalFixtureSession(req, now, sessionSecret);
+    const sessionContext = sharedEngine
+      ? null
+      : engineFromLocalFixtureSession(req, localFixtureSessionSigningKey, now);
+    const engine = sharedEngine || sessionContext.engine;
     const sendApiJson = (statusCode, data) => sendJson(
       res,
       statusCode,
       data,
-      useBrowserLocalFixtureSession ? localFixtureSessionHeader(req, engine, now, sessionSecret) : undefined
+      useBrowserLocalFixtureSession
+        ? localFixtureSessionHeader(req, engine, localFixtureSessionSigningKey, now, productionRuntime, sessionContext.session)
+        : undefined
     );
 
     try {
@@ -265,7 +353,8 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
       if (pathname === '/api/reset') {
         if (req.method !== 'POST') return methodNotAllowed(res, ['POST', 'OPTIONS']);
         requireJsonContentType(req);
-        await parseJsonBody(req, MAX_BODY_BYTES, { requireEmptyObject: true });
+        const body = await parseJsonBody(req, { allowEmptyBody: false });
+        requireEmptyObject(body);
         const reset = engine.resetLocalFixtureScenario();
         return sendApiJson(200, { success: true, executionMode: 'local-demo-fixture', reset });
       }

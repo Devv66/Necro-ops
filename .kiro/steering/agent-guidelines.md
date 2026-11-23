@@ -23,7 +23,7 @@
 
 ## 4. Idempotency and receipts
 
-- Re-running simulated cleanup against an already transitioned record returns `ALREADY_EXORCISED` without a second mutation.
+- A sequential re-run using the latest signed local browser-session cookie against an already transitioned record returns `ALREADY_EXORCISED` without a second mutation. This stateless local demo does not claim transactional coordination for simultaneous duplicate HTTP submissions.
 - Build a receipt from one captured timestamp and hash the canonical receipt fields.
 - Call the result an unsigned local fixture receipt digest, not a cryptographic signature.
 

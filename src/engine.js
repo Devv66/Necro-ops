@@ -96,20 +96,11 @@ exports.handler = function(event, context, callback) {
 ];
 
 const RISK_PRIORITY = Object.freeze({ CRITICAL: 3, HIGH: 2, MEDIUM: 1, SAFE: 0 });
-export const RISK_CLASSIFICATION = Object.freeze({
-  CRITICAL: 'CRITICAL_HAUNTED',
-  WARNING: 'EERIE_WARNING',
-  LOW: 'LOW_RISK_FIXTURES',
-  CLEAN: 'SANCTIFIED_CLEAN'
+export const RISK_STATUS_THRESHOLDS = Object.freeze({
+  critical: 80,
+  warning: 40,
+  lowRisk: 20
 });
-
-export function classifyFixtureRisk(score) {
-  if (!Number.isFinite(score) || score < 0 || score > 100) throw new RangeError('Risk score must be a finite number from 0 to 100.');
-  if (score >= 80) return RISK_CLASSIFICATION.CRITICAL;
-  if (score >= 40) return RISK_CLASSIFICATION.WARNING;
-  if (score >= 20) return RISK_CLASSIFICATION.LOW;
-  return RISK_CLASSIFICATION.CLEAN;
-}
 const FEE_RATE_BASIS_POINTS = 290;
 const MODERN_FEE_NUMERATOR = 29n;
 const MODERN_FEE_DENOMINATOR = 1_000n;
@@ -141,6 +132,17 @@ function sha256(value) {
 
 function centsToUsd(cents) {
   return Number((cents / 100).toFixed(2));
+}
+
+export function classifyFixtureRiskIndex(score) {
+  if (!Number.isInteger(score) || score < 0 || score > 100) {
+    throw new RangeError('score must be an integer from 0 to 100.');
+  }
+
+  if (score >= RISK_STATUS_THRESHOLDS.critical) return 'CRITICAL_HAUNTED';
+  if (score >= RISK_STATUS_THRESHOLDS.warning) return 'EERIE_WARNING';
+  if (score >= RISK_STATUS_THRESHOLDS.lowRisk) return 'LOW_RISK_FIXTURES';
+  return 'SANCTIFIED_CLEAN';
 }
 
 function seededRandom(seed) {
@@ -248,13 +250,13 @@ export class NecroOpsEngine {
   }
 
   /**
-   * The public demo stores only the IDs of simulated transitions in a browser
-   * session cookie. No fixture content, receipt, credential, or cloud data is
-   * accepted from that cookie.
+   * The public demo serializes only IDs of simulated transitions for a signed,
+   * time-limited browser cookie. No fixture content, receipt, credential, or
+   * cloud data is accepted from that cookie.
    */
   exportLocalFixtureSession() {
     return {
-      version: 2,
+      version: 1,
       exorcisedFixtureIds: this.zombies
         .filter(zombie => zombie.status === 'EXORCISED')
         .map(zombie => zombie.id)
@@ -263,7 +265,7 @@ export class NecroOpsEngine {
   }
 
   restoreLocalFixtureSession(session) {
-    if (!session || typeof session !== 'object' || session.version !== 2 || !Array.isArray(session.exorcisedFixtureIds)) {
+    if (!session || typeof session !== 'object' || session.version !== 1 || !Array.isArray(session.exorcisedFixtureIds)) {
       return false;
     }
 
@@ -328,7 +330,7 @@ export class NecroOpsEngine {
       executionMode: 'local-demo-fixture',
       scannedAt: new Date().toISOString(),
       hauntedRiskIndex: score,
-      status: classifyFixtureRisk(score),
+      status: classifyFixtureRiskIndex(score),
       totalMonthlyWasteUSD: Number(totalWaste.toFixed(2)),
       annualWasteProjectionUSD: Number((totalWaste * 12).toFixed(2)),
       activeZombieCount: activeZombies,
@@ -502,8 +504,9 @@ export class NecroOpsEngine {
       detail: 'Selected an explicit resource from the in-memory fixture catalog. No cloud inventory query occurred.'
     }];
 
-    // A retry must be an explicit no-op: it must not claim a new state change,
-    // rerun the safety gate, recreate a receipt, or report prior savings again.
+    // A sequential retry against the latest reconstructed browser state must be
+    // an explicit no-op: it must not claim a new state change, rerun the safety
+    // gate, recreate a receipt, or report prior savings again.
     if (target.status === 'EXORCISED') {
       const updatedScan = this.scanCloudPerimeter();
       actionsTaken.push({
