@@ -34,6 +34,12 @@ jobs:
           git apply --check --binary /tmp/necroops-release/release.patch
           git apply --binary /tmp/necroops-release/release.patch
 
+      - name: Remove one-time transfer files from the tracked source inventory
+        run: |
+          set -euo pipefail
+          git rm -r .release
+          git rm .github/workflows/import-local-live-release.yml
+
       - name: Verify source and run tests
         run: |
           set -euo pipefail
@@ -42,12 +48,10 @@ jobs:
           npm run ci
           npm run audit:verify
 
-      - name: Commit verified release and remove transfer files
+      - name: Commit and push the verified release
         shell: bash
         run: |
           set -euo pipefail
-          git rm -r .release
-          git rm .github/workflows/import-local-live-release.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
