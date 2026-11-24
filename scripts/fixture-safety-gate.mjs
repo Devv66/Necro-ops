@@ -8,13 +8,16 @@ if (!Number.isInteger(trials) || trials < 1 || trials > 10_000) {
   process.exit(2);
 }
 
-const result = new NecroOpsEngine().runPropertyBasedTests(trials);
+const result = new NecroOpsEngine().runExhaustiveFixtureSafetyGate();
 console.log(JSON.stringify({
   executionMode: result.executionMode,
   passed: result.passed,
+  verificationMethod: result.verificationMethod,
+  domainMinimumCents: result.domainMinimumCents,
+  domainMaximumCents: result.domainMaximumCents,
+  domainValuesChecked: result.domainValuesChecked,
   trialsRequested: result.trialsRequested,
   trialsPassed: result.trialsPassed,
-  seed: result.seed,
   property: result.property
 }, null, 2));
 
