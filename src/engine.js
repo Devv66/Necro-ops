@@ -194,6 +194,8 @@ export function verifyFixtureReceipt(receipt) {
   if (receipt.executionMode !== 'local-demo-fixture') return false;
   if (!Number.isFinite(receipt.modeledMonthlyChangeUSD) || receipt.modeledMonthlyChangeUSD < 0) return false;
   if (!Number.isFinite(Date.parse(receipt.exorcisedAt))) return false;
+  if (!/^LOCAL-FIXTURE-RECEIPT-[A-F0-9]{8}$/.test(receipt.receiptId)) return false;
+  if (!ZOMBIE_CATALOG.some(fixture => fixture.id === receipt.resourceId)) return false;
   const gate = receipt.propertyBasedSafetyGate;
   if (!gate || typeof gate !== 'object' || gate.passed !== true ||
       !Number.isInteger(gate.trialsRequested) || gate.trialsRequested < 1 ||
@@ -206,7 +208,6 @@ export function verifyFixtureReceipt(receipt) {
 
 function paymentModernExample() {
   return `// Local JavaScript example only — not deployed to AWS.
-import { randomUUID } from 'node:crypto';
 export async function handler(event) {
   let payload;
   try {
@@ -245,7 +246,7 @@ export async function handler(event) {
   if (typeof payload.token !== 'string' || payload.token.length === 0) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing token' }) };
   }
-  const fixtureTransactionId = 'FIXTURE_TX_' + randomUUID();
+  const fixtureTransactionId = 'FIXTURE_TX_' + globalThis.crypto.randomUUID();
   return {
     statusCode: 200,
     body: JSON.stringify({ transactionId: fixtureTransactionId, status: 'PROCESSED_IN_LOCAL_DEMO' })
