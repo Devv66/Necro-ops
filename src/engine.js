@@ -188,6 +188,17 @@ export function calculateModernFixturePayment(amountCents) {
 }
 
 export function verifyFixtureReceipt(receipt) {
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) return false;
+  const requiredStringFields = ['receiptId', 'resourceId', 'resourceName', 'exorcisedAt', 'executionMode', 'operator', 'reason'];
+  if (requiredStringFields.some(field => typeof receipt[field] !== 'string' || receipt[field].length === 0)) return false;
+  if (receipt.executionMode !== 'local-demo-fixture') return false;
+  if (!Number.isFinite(receipt.modeledMonthlyChangeUSD) || receipt.modeledMonthlyChangeUSD < 0) return false;
+  if (!Number.isFinite(Date.parse(receipt.exorcisedAt))) return false;
+  const gate = receipt.propertyBasedSafetyGate;
+  if (!gate || typeof gate !== 'object' || gate.passed !== true ||
+      !Number.isInteger(gate.trialsRequested) || gate.trialsRequested < 1 ||
+      !Number.isInteger(gate.trialsPassed) || gate.trialsPassed !== gate.trialsRequested ||
+      !Number.isSafeInteger(gate.seed)) return false;
   if (!receipt || typeof receipt !== 'object' || typeof receipt.receiptDigestSha256 !== 'string') return false;
   const { receiptDigestSha256, ...unsignedReceipt } = receipt;
   return sha256(canonicalize(unsignedReceipt)) === receiptDigestSha256;
@@ -196,10 +207,20 @@ export function verifyFixtureReceipt(receipt) {
 function paymentModernExample() {
   return `// Local JavaScript example only — not deployed to AWS.
 export async function handler(event) {
-  const payload = JSON.parse(event.body || '{}');
-  const amountCents = Math.round(Number(payload.amount) * 100);
-  if (!Number.isInteger(amountCents) || amountCents < 32) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Amount must cover the fixture fee.' }) };
+  let payload;
+  try {
+    payload = JSON.parse(event.body || '{}');
+  } catch {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Malformed JSON body.' }) };
+  }
+  const amount = payload.amount;
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > 15000) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Amount must be a positive finite number no greater than 15000.' }) };
+  }
+  const rawCents = amount * 100;
+  const amountCents = Math.round(rawCents);
+  if (!Number.isSafeInteger(amountCents) || amountCents > 1500000 || Math.abs(rawCents - amountCents) > 0.00000001 || amountCents < 32) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Amount must use at most two decimal places and cover the fixture fee.' }) };
   }
   const variableFeeCents = Math.floor((amountCents * 29 + 500) / 1000);
   const feeCents = variableFeeCents + 30;
@@ -214,11 +235,16 @@ export async function handler(event) {
 function billingWebhookModernExample() {
   return `// Local JavaScript example only — not deployed to AWS.
 export async function handler(event) {
-  const payload = JSON.parse(event.body || '{}');
+  let payload;
+  try {
+    payload = JSON.parse(event.body || '{}');
+  } catch {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Malformed JSON body.' }) };
+  }
   if (typeof payload.token !== 'string' || payload.token.length === 0) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing token' }) };
   }
-  const fixtureTransactionId = 'FIXTURE_TX_' + payload.token.slice(-6);
+  const fixtureTransactionId = 'FIXTURE_TX_' + crypto.randomUUID();
   return {
     statusCode: 200,
     body: JSON.stringify({ transactionId: fixtureTransactionId, status: 'PROCESSED_IN_LOCAL_DEMO' })
@@ -381,7 +407,7 @@ export class NecroOpsEngine {
         input: amount
       };
     }
-    if (Math.abs(rawCents - amountCents) > 0.000001) {
+    if (Math.abs(rawCents - amountCents) > 0.00000001) {
       return { valid: false, reason: 'Input amount must have no more than two decimal places.', input: amount };
     }
 
