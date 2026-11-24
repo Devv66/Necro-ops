@@ -11,12 +11,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: necroops-local-live-release-import
+  group: necroops-local-live-release-import-v2
   cancel-in-progress: false
 
 jobs:
   import-release:
-    if: ${{ hashFiles('.release/patch.part00') != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out the release branch
@@ -24,6 +23,13 @@ jobs:
         with:
           ref: release/local-live-judge-ready-2026-11-24
           fetch-depth: 0
+
+      - name: Verify the transfer payload exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .release/patch.part00
+          test -f .release/patch.part07
 
       - name: Restore and verify the exact tested release patch
         shell: bash
