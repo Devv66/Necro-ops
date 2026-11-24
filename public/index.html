@@ -70,7 +70,7 @@
       <div id="receiptBox" class="receipt"><h3>LOCAL FIXTURE RECEIPT — UNSIGNED</h3><div id="receiptDetails"></div></div>
     </section>
   </main>
-  <div class="footer-note">The workflow button runs a 100-trial local, seeded numerical property check before changing the simulator’s local state. Reset Local Fixture Scenario restores all five fixtures to the initial 88% risk and $1,050/month modeled state for this browser demo session. Neither action invokes Kiro, AWS, CloudWatch, Cost Explorer, or a cloud-remediation API.</div>
+  <div class="footer-note">The workflow button runs an exhaustive local integer-cent-domain check before changing the simulator’s local state. Reset Local Fixture Scenario restores all five fixtures to the initial 88% risk and $1,050/month modeled state for this browser demo session. Neither action invokes Kiro, AWS, CloudWatch, Cost Explorer, or a cloud-remediation API.</div>
 
   <script>
     let telemetry = null;
@@ -131,7 +131,7 @@
       const details = $('receiptDetails'); details.replaceChildren();
       const entries = [
         ['RECEIPT ID', receipt.receiptId], ['SIMULATED RESOURCE', receipt.resourceId], ['MODELED MONTHLY CHANGE', money(receipt.modeledMonthlyChangeUSD)],
-        ['LOCAL PBT RESULT', receipt.propertyBasedSafetyGate.trialsPassed + '/' + receipt.propertyBasedSafetyGate.trialsRequested + ' (seed ' + receipt.propertyBasedSafetyGate.seed + ')'],
+        ['EXHAUSTIVE CENT CHECK', receipt.propertyBasedSafetyGate.trialsPassed.toLocaleString() + '/' + receipt.propertyBasedSafetyGate.domainValuesChecked.toLocaleString() + ' values (' + receipt.propertyBasedSafetyGate.domainMinimumCents + '–' + receipt.propertyBasedSafetyGate.domainMaximumCents + ' cents)'],
         ['SHA-256 RECEIPT DIGEST', receipt.receiptDigestSha256], ['MODE', receipt.executionMode]
       ];
       entries.forEach(([label, value]) => { const row = document.createElement('div'); const bold = document.createElement('b'); bold.textContent = label + ': '; row.append(bold, document.createTextNode(value)); details.append(row); });
