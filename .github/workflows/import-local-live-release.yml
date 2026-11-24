@@ -1,0 +1,55 @@
+name: One-time NecroOps Local Live release import
+
+on:
+  push:
+    branches:
+      - release/local-live-judge-ready-2026-11-24
+    paths:
+      - .github/workflows/import-local-live-release.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: necroops-local-live-release-import
+  cancel-in-progress: false
+
+jobs:
+  import-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out approved release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/local-live-judge-ready-2026-11-24
+          fetch-depth: 0
+
+      - name: Reassemble and apply exact tested release patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/necroops-release
+          cat .release/patch.part* | base64 --decode > /tmp/necroops-release/patch.xz
+          xz --decompress --stdout /tmp/necroops-release/patch.xz > /tmp/necroops-release/release.patch
+          git apply --check --binary /tmp/necroops-release/release.patch
+          git apply --binary /tmp/necroops-release/release.patch
+
+      - name: Verify source and run tests
+        run: |
+          set -euo pipefail
+          git diff --check
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run ci
+          npm run audit:verify
+
+      - name: Commit verified release and remove transfer files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -r .release
+          git rm .github/workflows/import-local-live-release.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: publish verified Local Live Scan release"
+          git push origin HEAD:release/local-live-judge-ready-2026-11-24
