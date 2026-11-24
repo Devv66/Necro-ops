@@ -206,6 +206,7 @@ export function verifyFixtureReceipt(receipt) {
 
 function paymentModernExample() {
   return `// Local JavaScript example only — not deployed to AWS.
+import { randomUUID } from 'node:crypto';
 export async function handler(event) {
   let payload;
   try {
@@ -244,7 +245,7 @@ export async function handler(event) {
   if (typeof payload.token !== 'string' || payload.token.length === 0) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing token' }) };
   }
-  const fixtureTransactionId = 'FIXTURE_TX_' + crypto.randomUUID();
+  const fixtureTransactionId = 'FIXTURE_TX_' + randomUUID();
   return {
     statusCode: 200,
     body: JSON.stringify({ transactionId: fixtureTransactionId, status: 'PROCESSED_IN_LOCAL_DEMO' })
