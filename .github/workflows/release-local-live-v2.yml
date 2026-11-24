@@ -1,4 +1,4 @@
-name: One-time NecroOps Local Live release import (permission-safe)
+name: One-time NecroOps Local Live release import
 
 on:
   push:
@@ -19,46 +19,49 @@ jobs:
     if: ${{ hashFiles('.release/patch.part00') != '' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Check out approved release branch and full history
-        uses: actions/checkout@v4
+      - name: Check out the release branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: release/local-live-judge-ready-2026-11-24
           fetch-depth: 0
 
-      - name: Restore the original verified payload from branch history
+      - name: Restore and verify the exact tested release patch
+        shell: bash
         run: |
           set -euo pipefail
           git checkout 81f492096d80d1ebf59d77beacc5ecefc3a126fb -- .release/patch.part00 .release/patch.part01 .release/patch.part02 .release/patch.part03 .release/patch.part04 .release/patch.part05 .release/patch.part06 .release/patch.part07
           mkdir -p /tmp/necroops-release
           cat .release/patch.part* | base64 --decode > /tmp/necroops-release/patch.xz
           xz --decompress --stdout /tmp/necroops-release/patch.xz > /tmp/necroops-release/release.patch
+          echo '47dab25011a69e46408bdc3ab0e35882e0feaab7b87b2b3ec491530c21c0e4ed  /tmp/necroops-release/release.patch' | sha256sum --check
           git apply --check --binary /tmp/necroops-release/release.patch
           git apply --binary /tmp/necroops-release/release.patch
 
-      - name: Keep the existing Actions test matrix unchanged
+      - name: Remove one-time transfer payload and importer workflow
         run: |
           set -euo pipefail
-          git restore --source=HEAD --staged --worktree -- .github/workflows/test.yml
+          git rm -r .release
+          git rm -f .github/workflows/release-local-live-v2.yml
 
-      - name: Remove transfer payload from the source inventory
-        run: git rm -r .release
-
-      - name: Run the complete CI suite
+      - name: Run the full test and audit gates
         run: |
           set -euo pipefail
           git diff --check
           npm ci --ignore-scripts --no-audit --no-fund
           npm run ci
-
-      - name: Regenerate audit for the exact final source tree
         env:
-          NECROOPS_SKIP_INSTALL: "1"
+          CI: "true"
+
+      - name: Regenerate and verify the complete source audit
         run: |
           set -euo pipefail
           npm run audit:refresh
           npm run audit:verify
+        env:
+          NECROOPS_SKIP_INSTALL: "1"
 
-      - name: Commit and push the verified release without changing workflow files
+      - name: Commit and publish the verified feature branch
+        shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
