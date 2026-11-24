@@ -250,7 +250,7 @@ test('NecroOps local fixture suite', async (t) => {
 
   await t.test('generated webhook example does not expose token suffixes and creates unique fixture IDs', async () => {
     const webhookExample = engine.resurrectLegacyCode('arn:aws:lambda:us-east-1:718293019283:function:billing-webhook-v1').modernizedExample;
-    const createHandler = new Function(`${webhookExample.replace('export async function handler', 'async function handler')}\\nreturn handler;`);
+    const createHandler = new Function(`${webhookExample.replace('export async function handler', 'async function handler')}\nreturn handler;`);
     const handler = createHandler();
     const first = await handler({ body: JSON.stringify({ token: 'sensitive-token-abcdef' }) });
     const second = await handler({ body: JSON.stringify({ token: 'sensitive-token-abcdef' }) });
