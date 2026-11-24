@@ -74,6 +74,8 @@
 
   <script>
     let telemetry = null;
+    let workflowInFlight = false;
+    let resetInFlight = false;
     const $ = id => document.getElementById(id);
     const money = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
     const STATUS_COLORS = Object.freeze({
@@ -121,8 +123,8 @@
     function syncWorkflowButton(availableLabel = 'Run local fixture workflow') {
       const workflowButton = $('exorciseBtn');
       const hasSuggestedFixture = Boolean(telemetry?.suggestedCleanupFixtureId);
-      workflowButton.disabled = !hasSuggestedFixture;
-      workflowButton.textContent = hasSuggestedFixture ? availableLabel : 'No active local fixtures remain';
+      workflowButton.disabled = !hasSuggestedFixture || workflowInFlight || resetInFlight;
+      workflowButton.textContent = workflowInFlight ? 'Running local fixture workflow…' : (resetInFlight ? 'Reset in progress…' : (hasSuggestedFixture ? availableLabel : 'No active local fixtures remain'));
     }
 
     function renderReceipt(receipt) {
@@ -154,8 +156,11 @@
     }
 
     async function triggerWorkflow() {
+      if (workflowInFlight || resetInFlight) return;
       if (!telemetry || !telemetry.suggestedCleanupFixtureId) { $('uiError').textContent = 'No active local fixture is available to simulate. Use Reset Local Fixture Scenario to restore the demo.'; return; }
-      const button = $('exorciseBtn'); button.disabled = true; button.textContent = 'Running local fixture workflow…'; $('uiError').textContent = '';
+      workflowInFlight = true;
+      const button = $('exorciseBtn'); button.disabled = true; button.textContent = 'Running local fixture workflow…';
+      $('resetBtn').disabled = true; $('uiError').textContent = '';
       try {
         addFeed('SYS', 'Requesting a local workflow for explicit fixture ' + telemetry.suggestedCleanupFixtureId + '.');
         const response = await fetch('/api/kiro-crew/execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resourceId: telemetry.suggestedCleanupFixtureId }) });
@@ -170,21 +175,30 @@
           addFeed('SYS', 'No new local state transition was performed. No AWS resource was changed.');
         }
       } catch (error) { $('uiError').textContent = error.message; addFeed('ERROR', error.message); }
-      finally { syncWorkflowButton('Run next local fixture workflow'); }
+      finally {
+        workflowInFlight = false;
+        $('resetBtn').disabled = false;
+        syncWorkflowButton('Run next local fixture workflow');
+      }
     }
 
     async function resetLocalFixtureScenario() {
-      const button = $('resetBtn'); button.disabled = true; button.textContent = 'Resetting local fixture scenario…'; $('uiError').textContent = '';
+      if (workflowInFlight || resetInFlight) return;
+      resetInFlight = true;
+      const button = $('resetBtn'); button.disabled = true; button.textContent = 'Resetting local fixture scenario…';
+      syncWorkflowButton(); $('uiError').textContent = '';
       try {
         addFeed('SYS', 'Requesting reset of the local in-memory fixture scenario.');
         const response = await fetch('/api/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
         const data = await readJson(response); const reset = data.reset;
         renderTelemetry(reset.updatedScan);
         $('receiptBox').classList.remove('active'); $('receiptDetails').replaceChildren();
+        $('crewFeed').replaceChildren();
         const transitionLabel = reset.clearedTransitionCount === 1 ? 'transition' : 'transitions';
         addFeed('SYS', 'Reset complete: ' + reset.resetFixtureCount + ' local fixtures restored; ' + reset.clearedTransitionCount + ' simulated local ' + transitionLabel + ' reset. The displayed receipt panel was cleared. No AWS resource was changed.');
       } catch (error) { $('uiError').textContent = error.message; addFeed('ERROR', error.message); }
       finally {
+        resetInFlight = false;
         button.disabled = false;
         button.textContent = 'Reset Local Fixture Scenario';
         syncWorkflowButton();
