@@ -1,0 +1,68 @@
+name: One-time NecroOps Local Live release import (permission-safe)
+
+on:
+  push:
+    branches:
+      - release/local-live-judge-ready-2026-11-24
+    paths:
+      - .github/workflows/release-local-live-v2.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: necroops-local-live-release-import
+  cancel-in-progress: false
+
+jobs:
+  import-release:
+    if: ${{ hashFiles('.release/patch.part00') != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out approved release branch and full history
+        uses: actions/checkout@v4
+        with:
+          ref: release/local-live-judge-ready-2026-11-24
+          fetch-depth: 0
+
+      - name: Restore the original verified payload from branch history
+        run: |
+          set -euo pipefail
+          git checkout 81f492096d80d1ebf59d77beacc5ecefc3a126fb -- .release/patch.part00 .release/patch.part01 .release/patch.part02 .release/patch.part03 .release/patch.part04 .release/patch.part05 .release/patch.part06 .release/patch.part07
+          mkdir -p /tmp/necroops-release
+          cat .release/patch.part* | base64 --decode > /tmp/necroops-release/patch.xz
+          xz --decompress --stdout /tmp/necroops-release/patch.xz > /tmp/necroops-release/release.patch
+          git apply --check --binary /tmp/necroops-release/release.patch
+          git apply --binary /tmp/necroops-release/release.patch
+
+      - name: Keep the existing Actions test matrix unchanged
+        run: |
+          set -euo pipefail
+          git restore --source=HEAD --staged --worktree -- .github/workflows/test.yml
+
+      - name: Remove transfer payload from the source inventory
+        run: git rm -r .release
+
+      - name: Run the complete CI suite
+        run: |
+          set -euo pipefail
+          git diff --check
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run ci
+
+      - name: Regenerate audit for the exact final source tree
+        env:
+          NECROOPS_SKIP_INSTALL: "1"
+        run: |
+          set -euo pipefail
+          npm run audit:refresh
+          npm run audit:verify
+
+      - name: Commit and push the verified release without changing workflow files
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: publish verified Local Live Scan release"
+          git push origin HEAD:release/local-live-judge-ready-2026-11-24
