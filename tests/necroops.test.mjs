@@ -248,6 +248,21 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(malformed.statusCode, 400);
   });
 
+  await t.test('generated webhook example does not expose token suffixes and creates unique fixture IDs', async () => {
+    const webhookExample = engine.resurrectLegacyCode('arn:aws:lambda:us-east-1:718293019283:function:billing-webhook-v1').modernizedExample;
+    const createHandler = new Function(`${webhookExample.replace('export async function handler', 'async function handler')}\\nreturn handler;`);
+    const handler = createHandler();
+    const first = await handler({ body: JSON.stringify({ token: 'sensitive-token-abcdef' }) });
+    const second = await handler({ body: JSON.stringify({ token: 'sensitive-token-abcdef' }) });
+    const firstBody = JSON.parse(first.body);
+    const secondBody = JSON.parse(second.body);
+    assert.equal(first.statusCode, 200);
+    assert.equal(second.statusCode, 200);
+    assert.notEqual(firstBody.transactionId, secondBody.transactionId);
+    assert.doesNotMatch(firstBody.transactionId, /abcdef/);
+    assert.equal((await handler({ body: '{bad' })).statusCode, 400);
+  });
+
   await t.test('property gate is deterministic for a fixed seed and trial count', () => {
     const first = engine.runPropertyBasedTests(25, 123456);
     const second = engine.runPropertyBasedTests(25, 123456);
@@ -410,6 +425,10 @@ test('NecroOps local fixture suite', async (t) => {
     }
     assert.match(dashboard, /riskColor\(telemetry\.status\)/);
     assert.match(dashboard, /function syncWorkflowButton\(availableLabel = 'Run local fixture workflow'\)/);
+    assert.match(dashboard, /workflowInFlight/);
+    assert.match(dashboard, /resetInFlight/);
+    assert.match(dashboard, /\$\('crewFeed'\)\.replaceChildren\(\)/);
+
     assert.match(dashboard, /renderTelemetry\(data\.telemetry\);\s+syncWorkflowButton\(\);/);
     assert.match(dashboard, /clearedTransitionCount/);
     assert.doesNotMatch(dashboard, /local receipt\(s\) cleared/);
