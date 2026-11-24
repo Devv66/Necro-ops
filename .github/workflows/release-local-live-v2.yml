@@ -1,0 +1,82 @@
+name: One-time NecroOps Local Live release importer
+
+on:
+  push:
+    branches:
+      - release/verified-source-2026-11-24
+    paths:
+      - .github/workflows/release-local-live-v2.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: necroops-local-live-release-import
+  cancel-in-progress: false
+
+jobs:
+  import-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the integration branch after bootstrap merge
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: release/verified-source-2026-11-24
+          fetch-depth: 0
+
+      - name: Verify the transfer payload exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .release/patch.part00
+          test -f .release/patch.part07
+
+      - name: Restore and verify the exact tested release patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout 81f492096d80d1ebf59d77beacc5ecefc3a126fb -- .release/patch.part00 .release/patch.part01 .release/patch.part02 .release/patch.part03 .release/patch.part04 .release/patch.part05 .release/patch.part06 .release/patch.part07
+          mkdir -p /tmp/necroops-release
+          cat .release/patch.part* | base64 --decode > /tmp/necroops-release/patch.xz
+          xz --decompress --stdout /tmp/necroops-release/patch.xz > /tmp/necroops-release/release.patch
+          echo '47dab25011a69e46408bdc3ab0e35882e0feaab7b87b2b3ec491530c21c0e4ed  /tmp/necroops-release/release.patch' | sha256sum --check
+          git apply --check --binary /tmp/necroops-release/release.patch
+          git apply --binary /tmp/necroops-release/release.patch
+
+      - name: Remove one-time transfer payload and importer workflow
+        run: |
+          set -euo pipefail
+          git rm -r .release
+          git rm -f .github/workflows/release-local-live-v2.yml
+
+      - name: Run the full test and audit gates
+        run: |
+          set -euo pipefail
+          git diff --check
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run ci
+        env:
+          CI: "true"
+
+      - name: Regenerate and verify the complete source audit
+        run: |
+          set -euo pipefail
+          npm run audit:refresh
+          npm run audit:verify
+        env:
+          NECROOPS_SKIP_INSTALL: "1"
+
+      - name: Publish a clean feature branch and open a draft review
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c feature/local-live-judge-ready
+          git add -A
+          git commit -m "feat: publish verified Local Live Scan release"
+          git push --set-upstream origin feature/local-live-judge-ready
+          gh pr create --repo Devv66/Necro-ops --base release/verified-source-2026-11-24 --head feature/local-live-judge-ready --draft --title "feat: Safe Simulator + Local Live Scan" --body "## Summary\n\nPublishes the independently verified NecroOps 1.3.0 release candidate: Safe Simulator plus a separate, loopback-only, read-only Local Live Scan. AWS Live remains disabled and parked.\n\n## Verification\n\n- 57/57 tests passed on Node 22.16.0\n- 100/100 seeded safety trials passed\n- Full audit verification passed (38 source files)\n- Dependency audit: 0 vulnerabilities\n- Patch tree exactly matches the verified final release ZIP\n\n## Release boundary\n\nThis is a draft feature PR against the non-production release branch. It does not merge to main, redeploy Production, or update Devpost. A real Windows Local Live recording and matching Devpost update remain gated on a supervised run of the app on the demo PC."
