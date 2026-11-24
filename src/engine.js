@@ -108,6 +108,7 @@ const FIXED_FEE_CENTS = 30;
 const MINIMUM_SETTLEABLE_AMOUNT_CENTS = 32;
 // The local property-test domain is deliberately bounded to $15,000.00.
 const MAXIMUM_SETTLEABLE_AMOUNT_CENTS = 1_500_000;
+let exhaustiveFixtureGateCache = null;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -200,7 +201,10 @@ export function verifyFixtureReceipt(receipt) {
   if (!gate || typeof gate !== 'object' || gate.passed !== true ||
       !Number.isInteger(gate.trialsRequested) || gate.trialsRequested < 1 ||
       !Number.isInteger(gate.trialsPassed) || gate.trialsPassed !== gate.trialsRequested ||
-      !Number.isSafeInteger(gate.seed)) return false;
+      gate.verificationMethod !== 'exhaustive-integer-cent-domain' ||
+      !Number.isSafeInteger(gate.domainMinimumCents) || !Number.isSafeInteger(gate.domainMaximumCents) ||
+      gate.domainValuesChecked !== gate.domainMaximumCents - gate.domainMinimumCents + 1 ||
+      gate.seed !== null) return false;
   if (!receipt || typeof receipt !== 'object' || typeof receipt.receiptDigestSha256 !== 'string') return false;
   const { receiptDigestSha256, ...unsignedReceipt } = receipt;
   return sha256(canonicalize(unsignedReceipt)) === receiptDigestSha256;
@@ -478,6 +482,42 @@ export class NecroOpsEngine {
     };
   }
 
+  runExhaustiveFixtureSafetyGate() {
+    if (exhaustiveFixtureGateCache) return { ...exhaustiveFixtureGateCache, failures: [...exhaustiveFixtureGateCache.failures] };
+
+    const minimum = MINIMUM_SETTLEABLE_AMOUNT_CENTS;
+    const maximum = MAXIMUM_SETTLEABLE_AMOUNT_CENTS;
+    const domainValues = maximum - minimum + 1;
+    let checked = 0;
+    let passed = 0;
+    const failures = [];
+
+    for (let amountCents = minimum; amountCents <= maximum; amountCents += 1) {
+      const legacy = calculateLegacyFixturePayment(amountCents);
+      const modern = calculateModernFixturePayment(amountCents);
+      const equivalent = legacy.feeCents === modern.feeCents && legacy.netCents === modern.netCents;
+      const conserved = modern.netCents + modern.feeCents === amountCents;
+      checked += 1;
+      if (equivalent && conserved) passed += 1;
+      else if (failures.length < 20) failures.push({ amountCents, equivalent, conserved });
+    }
+
+    exhaustiveFixtureGateCache = {
+      executionMode: 'local-demo-fixture',
+      verificationMethod: 'exhaustive-integer-cent-domain',
+      property: 'Legacy and modern fixture fee/net agree and fee plus net conserves gross for every settleable integer-cent amount.',
+      domainMinimumCents: minimum,
+      domainMaximumCents: maximum,
+      domainValuesChecked: checked,
+      trialsRequested: checked,
+      trialsPassed: passed,
+      seed: null,
+      passed: checked === domainValues && passed === domainValues && failures.length === 0,
+      failures
+    };
+    return { ...exhaustiveFixtureGateCache, failures: [...exhaustiveFixtureGateCache.failures] };
+  }
+
   exorciseZombieResource(resourceId, reason = 'Local fixture property-based safety gate passed.') {
     const resource = this.getResource(resourceId);
     if (resource.status === 'EXORCISED') {
@@ -489,7 +529,7 @@ export class NecroOpsEngine {
       };
     }
 
-    const safetyGate = this.runPropertyBasedTests(100);
+    const safetyGate = this.runExhaustiveFixtureSafetyGate();
     if (!safetyGate.passed) {
       throw engineError(
         `Local property-based safety gate failed: ${safetyGate.failures.length} trial(s) did not satisfy the fixture property.`,
@@ -512,6 +552,10 @@ export class NecroOpsEngine {
       executionMode: 'local-demo-fixture',
       operator: 'local-fixture-simulator',
       propertyBasedSafetyGate: {
+        verificationMethod: safetyGate.verificationMethod,
+        domainMinimumCents: safetyGate.domainMinimumCents,
+        domainMaximumCents: safetyGate.domainMaximumCents,
+        domainValuesChecked: safetyGate.domainValuesChecked,
         trialsRequested: safetyGate.trialsRequested,
         trialsPassed: safetyGate.trialsPassed,
         passed: safetyGate.passed,
