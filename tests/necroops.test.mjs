@@ -149,6 +149,32 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(after.resources.find(resource => resource.id === 'i-0f948a913bc89a712').status, 'EXORCISED');
   });
 
+  await t.test('remaining active fixtures can never be reported as clean', () => {
+    const singleHigh = new NecroOpsEngine();
+    for (const fixture of singleHigh.zombies) {
+      fixture.status = 'EXORCISED';
+      fixture.riskLevel = 'SAFE';
+    }
+    const high = singleHigh.zombies[0];
+    high.status = 'HAUNTED_ZOMBIE';
+    high.riskLevel = 'HIGH';
+    const highScan = singleHigh.scanCloudPerimeter();
+    assert.equal(highScan.activeZombieCount, 1);
+    assert.notEqual(highScan.status, 'SANCTIFIED_CLEAN');
+
+    const singleCritical = new NecroOpsEngine();
+    for (const fixture of singleCritical.zombies) {
+      fixture.status = 'EXORCISED';
+      fixture.riskLevel = 'SAFE';
+    }
+    const critical = singleCritical.zombies[0];
+    critical.status = 'HAUNTED_ZOMBIE';
+    critical.riskLevel = 'CRITICAL';
+    const criticalScan = singleCritical.scanCloudPerimeter();
+    assert.equal(criticalScan.activeZombieCount, 1);
+    assert.notEqual(criticalScan.status, 'SANCTIFIED_CLEAN');
+  });
+
   await t.test('cleanup candidates are explicitly ranked by risk then modeled cost', () => {
     const candidates = engine.getCleanupCandidates();
     assert.equal(candidates[0].id, 'i-0f948a913bc89a712');
@@ -190,6 +216,7 @@ test('NecroOps local fixture suite', async (t) => {
     for (const amount of [-10, 0, Number.NaN, Number.POSITIVE_INFINITY, 0.01, 0.31, 10.001, 15000.01, 1e20, Number.MAX_VALUE]) {
       assert.equal(engine.verifyPropertyBasedInvariants({ amount }).valid, false);
     }
+    assert.equal(engine.verifyPropertyBasedInvariants({ amount: 10.000000001 }).valid, false);
     const valid = engine.verifyPropertyBasedInvariants({ amount: 0.32 });
     assert.equal(valid.valid, true);
     assert.equal(valid.inputAmountCents, 32);
@@ -213,6 +240,12 @@ test('NecroOps local fixture suite', async (t) => {
     assert.deepEqual(body, { success: true, fee: expected.feeCents / 100, net: expected.netCents / 100 });
     const rejected = await handler({ body: JSON.stringify({ amount: 0.31 }) });
     assert.equal(rejected.statusCode, 400);
+    const fractionalCent = await handler({ body: JSON.stringify({ amount: 10.001 }) });
+    assert.equal(fractionalCent.statusCode, 400);
+    const tooLarge = await handler({ body: JSON.stringify({ amount: 15000.01 }) });
+    assert.equal(tooLarge.statusCode, 400);
+    const malformed = await handler({ body: '{invalid' });
+    assert.equal(malformed.statusCode, 400);
   });
 
   await t.test('property gate is deterministic for a fixed seed and trial count', () => {
@@ -250,6 +283,12 @@ test('NecroOps local fixture suite', async (t) => {
     const tampered = structuredClone(receipt);
     tampered.modeledMonthlyChangeUSD = 999999;
     assert.equal(verifyFixtureReceipt(tampered), false);
+    const missingResource = structuredClone(receipt);
+    delete missingResource.resourceId;
+    assert.equal(verifyFixtureReceipt(missingResource), false);
+    const wrongMode = structuredClone(receipt);
+    wrongMode.executionMode = 'aws-live';
+    assert.equal(verifyFixtureReceipt(wrongMode), false);
   });
 
   await t.test('cleanup is idempotent for sequential retries within one engine process', () => {
