@@ -20,22 +20,23 @@
     .badge { padding:5px 9px; border:1px solid #3b3158; color:#d6b7ff; background:rgba(157,78,221,.13); border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.7px; text-transform:uppercase; }
     .badge.safe { border-color:#176b61; background:rgba(0,245,212,.09); color:var(--cyan); }
     .notice { max-width:1220px; margin:22px auto 0; padding:12px 16px; border-radius:9px; border:1px solid #9d6d13; background:#211a0a; color:#ffcf70; font-size:13px; font-weight:700; }
-    main { max-width:1220px; margin:22px auto; padding:0 0 26px; display:grid; grid-template-columns:minmax(330px, .78fr) minmax(400px,1.22fr); gap:20px; }
-    .card { background:var(--surface); border:1px solid #1e2638; border-radius:12px; padding:22px; }
+    main { max-width:1220px; margin:22px auto; padding:0 0 26px; display:grid; grid-template-columns:minmax(330px, .78fr) minmax(400px,1.22fr); gap:20px; min-width:0; }
+    .card { min-width:0; background:var(--surface); border:1px solid #1e2638; border-radius:12px; padding:22px; }
     .eyebrow { color:var(--muted); letter-spacing:1px; font-size:11px; font-weight:800; } h2 { margin:5px 0 4px; font-size:18px; } .hint { margin:0; color:#718096; font-size:12px; line-height:1.45; }
     .gauge { width:226px; height:226px; margin:21px auto; position:relative; display:grid; place-items:center; }
     .gauge svg { position:absolute; width:100%; height:100%; transform:rotate(-90deg); }
     .gauge circle { fill:none; stroke-width:16; } .gauge .track { stroke:#1e2638; } .gauge .value { stroke:var(--red); stroke-dasharray:565; stroke-dashoffset:68; transition:stroke-dashoffset .55s ease,stroke .35s ease; }
     .score { text-align:center; } #riskScoreText { font-size:53px; line-height:1; font-weight:900; color:var(--red); } .score small { display:block; margin-top:7px; color:var(--muted); font-size:10px; font-weight:800; letter-spacing:1px; }
     #statusBadge { display:table; margin:-10px auto 18px; padding:7px 11px; border:1px solid var(--red); border-radius:6px; background:rgba(255,0,84,.12); color:var(--red); font-size:11px; font-weight:800; letter-spacing:.45px; text-align:center; }
-    .metrics { display:grid; grid-template-columns:1fr 1fr; gap:10px; } .metric { padding:14px 11px; border:1px solid var(--line); border-radius:8px; background:var(--surface-2); text-align:center; } .metric strong { display:block; font-size:23px; color:var(--red); } .metric span { display:block; margin-top:3px; color:var(--muted); font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; }
+    .metrics { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; } .metric { min-width:0; padding:14px 11px; border:1px solid var(--line); border-radius:8px; background:var(--surface-2); text-align:center; } .metric strong { display:block; font-size:23px; color:var(--red); overflow-wrap:anywhere; } .metric span { display:block; margin-top:3px; color:var(--muted); font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; }
     button { width:100%; margin-top:17px; padding:13px 15px; border:0; border-radius:8px; background:linear-gradient(135deg,var(--purple),#7223b1); color:white; cursor:pointer; font-size:13px; font-weight:800; letter-spacing:.35px; transition:transform .16s ease, filter .16s ease; } button:hover:not(:disabled) { transform:translateY(-1px); filter:brightness(1.08); } button:disabled { opacity:.63; cursor:not-allowed; }
     button.secondary { margin-top:9px; background:transparent; border:1px solid #2f9a89; color:var(--cyan); }
     .feed { margin-top:20px; padding:12px; min-height:132px; max-height:222px; overflow:auto; border:1px solid #1a2233; border-radius:7px; background:#090c16; font:11px/1.55 var(--mono); } .line { display:flex; gap:8px; margin-bottom:7px; } .tag { flex:0 0 auto; color:var(--purple); font-weight:800; } .text { color:var(--muted); }
-    .ledger { display:flex; flex-direction:column; gap:10px; margin-top:19px; } .resource { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 15px; border:1px solid #202b3f; border-left:4px solid var(--red); border-radius:8px; background:#101626; } .resource.exorcised { border-left-color:var(--cyan); background:rgba(0,245,212,.045); } .resource h3 { margin:0 0 4px; font-size:14px; } .resource p { margin:0; color:#718096; font:11px/1.45 var(--mono); overflow-wrap:anywhere; } .type { display:inline-block; margin-left:7px; padding:2px 6px; border-radius:4px; background:#1a2233; color:#aab7ca; font-size:9px; vertical-align:2px; } .amount { flex:0 0 auto; text-align:right; } .amount strong { display:block; color:var(--red); font-size:16px; } .exorcised .amount strong { color:var(--cyan); } .amount span { display:block; color:#718096; font-size:10px; margin-top:3px; }
+    .ledger { display:flex; flex-direction:column; gap:10px; margin-top:19px; } .resource { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; padding:14px 15px; border:1px solid #202b3f; border-left:4px solid var(--red); border-radius:8px; background:#101626; } .resource > :first-child { min-width:0; } .resource.exorcised { border-left-color:var(--cyan); background:rgba(0,245,212,.045); } .resource h3 { margin:0 0 4px; font-size:14px; } .resource p { margin:0; color:#718096; font:11px/1.45 var(--mono); overflow-wrap:anywhere; } .type { display:inline-block; margin-left:7px; padding:2px 6px; border-radius:4px; background:#1a2233; color:#aab7ca; font-size:9px; vertical-align:2px; } .amount { flex:0 0 auto; text-align:right; } .amount strong { display:block; color:var(--red); font-size:16px; } .exorcised .amount strong { color:var(--cyan); } .amount span { display:block; color:#718096; font-size:10px; margin-top:3px; }
     .receipt { display:none; margin-top:18px; padding:15px; border:1px dashed var(--cyan); border-radius:8px; background:rgba(0,245,212,.04); } .receipt.active { display:block; } .receipt h3 { margin:0 0 9px; color:var(--cyan); font-size:13px; } .receipt div { color:var(--muted); font:11px/1.6 var(--mono); overflow-wrap:anywhere; } .receipt b { color:#d7e2ef; }
     .error { margin-top:12px; color:#ff8cab; font-size:12px; min-height:18px; } .footer-note { max-width:1220px; margin:0 auto 28px; color:#718096; padding:0 2px; font-size:11px; line-height:1.5; }
-    @media(max-width:850px) { header { align-items:flex-start; flex-direction:column; } .badges { justify-content:flex-start; } .notice,main,.footer-note { margin-left:16px; margin-right:16px; } main { grid-template-columns:1fr; } }
+    @media(max-width:850px) { header { align-items:flex-start; flex-direction:column; } .badges { justify-content:flex-start; } .notice,main,.footer-note { margin-left:16px; margin-right:16px; } main { grid-template-columns:minmax(0,1fr); } }
+    @media(max-width:400px) { .notice,main,.footer-note { margin-left:12px; margin-right:12px; } .card { padding:16px; } .metrics { grid-template-columns:1fr; } .resource { align-items:flex-start; flex-wrap:wrap; } .resource > :first-child { flex:1 1 160px; } .amount { flex-basis:100%; text-align:left; } }
   </style>
 </head>
 <body>
@@ -54,7 +55,7 @@
       <div class="gauge"><svg viewBox="0 0 200 200" aria-hidden="true"><circle class="track" cx="100" cy="100" r="90"></circle><circle id="gaugeFill" class="value" cx="100" cy="100" r="90"></circle></svg><div class="score"><div id="riskScoreText">—</div><small>HAUNTED INDEX</small></div></div>
       <div id="statusBadge">LOADING LOCAL FIXTURES</div>
       <div class="metrics"><div class="metric"><strong id="wasteMonthText">—</strong><span>Modeled monthly cost</span></div><div class="metric"><strong id="wasteYearText">—</strong><span>Modeled annual projection</span></div></div>
-      <button id="exorciseBtn" type="button">Run local fixture workflow</button>
+      <button id="exorciseBtn" type="button" disabled>Loading local fixture scenario…</button>
       <button id="resetBtn" class="secondary" type="button">Reset Local Fixture Scenario</button>
       <div id="uiError" class="error" role="alert"></div>
       <div class="eyebrow" style="margin-top:20px">LOCAL WORKFLOW EVENT FEED</div>
@@ -75,7 +76,13 @@
     let telemetry = null;
     const $ = id => document.getElementById(id);
     const money = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
-    const riskColor = score => score > 70 ? '#ff0054' : score > 30 ? '#ffbe0b' : '#24d18b';
+    const STATUS_COLORS = Object.freeze({
+      CRITICAL_HAUNTED: '#ff0054',
+      EERIE_WARNING: '#ffbe0b',
+      LOW_RISK_FIXTURES: '#00f5d4',
+      SANCTIFIED_CLEAN: '#24d18b'
+    });
+    const riskColor = status => STATUS_COLORS[status] || '#94a3b8';
     const readable = value => String(value || '').replaceAll('_', ' ');
 
     function addFeed(tag, message) {
@@ -102,13 +109,20 @@
 
     function renderTelemetry(nextTelemetry) {
       telemetry = nextTelemetry;
-      const score = telemetry.hauntedRiskIndex; const color = riskColor(score);
+      const score = telemetry.hauntedRiskIndex; const color = riskColor(telemetry.status);
       $('riskScoreText').textContent = score + '%'; $('riskScoreText').style.color = color;
       $('gaugeFill').style.stroke = color; $('gaugeFill').style.strokeDashoffset = String(565 * (1 - score / 100));
       $('statusBadge').textContent = readable(telemetry.status); $('statusBadge').style.color = color; $('statusBadge').style.borderColor = color; $('statusBadge').style.background = color + '1f';
       $('wasteMonthText').textContent = money(telemetry.totalMonthlyWasteUSD); $('wasteMonthText').style.color = color;
       $('wasteYearText').textContent = money(telemetry.annualWasteProjectionUSD); $('wasteYearText').style.color = color;
       renderLedger(telemetry.resources);
+    }
+
+    function syncWorkflowButton(availableLabel = 'Run local fixture workflow') {
+      const workflowButton = $('exorciseBtn');
+      const hasSuggestedFixture = Boolean(telemetry?.suggestedCleanupFixtureId);
+      workflowButton.disabled = !hasSuggestedFixture;
+      workflowButton.textContent = hasSuggestedFixture ? availableLabel : 'No active local fixtures remain';
     }
 
     function renderReceipt(receipt) {
@@ -133,6 +147,7 @@
       const response = await fetch('/api/status');
       const data = await readJson(response);
       renderTelemetry(data.telemetry);
+      syncWorkflowButton();
       $('crewFeed').replaceChildren();
       addFeed('SYS', 'Loaded ' + data.telemetry.activeZombieCount + ' local fixture resources. No AWS account is connected.');
       addFeed('SYS', 'Suggested explicit fixture target: ' + (data.telemetry.suggestedCleanupFixtureId || 'none') + '.');
@@ -155,7 +170,7 @@
           addFeed('SYS', 'No new local state transition was performed. No AWS resource was changed.');
         }
       } catch (error) { $('uiError').textContent = error.message; addFeed('ERROR', error.message); }
-      finally { button.disabled = false; button.textContent = telemetry?.suggestedCleanupFixtureId ? 'Run next local fixture workflow' : 'No active local fixtures remain'; }
+      finally { syncWorkflowButton('Run next local fixture workflow'); }
     }
 
     async function resetLocalFixtureScenario() {
@@ -166,9 +181,14 @@
         const data = await readJson(response); const reset = data.reset;
         renderTelemetry(reset.updatedScan);
         $('receiptBox').classList.remove('active'); $('receiptDetails').replaceChildren();
-        addFeed('SYS', 'Reset complete: ' + reset.resetFixtureCount + ' local fixtures restored; ' + reset.clearedReceiptCount + ' local receipt(s) cleared. No AWS resource was changed.');
+        const transitionLabel = reset.clearedTransitionCount === 1 ? 'transition' : 'transitions';
+        addFeed('SYS', 'Reset complete: ' + reset.resetFixtureCount + ' local fixtures restored; ' + reset.clearedTransitionCount + ' simulated local ' + transitionLabel + ' reset. The displayed receipt panel was cleared. No AWS resource was changed.');
       } catch (error) { $('uiError').textContent = error.message; addFeed('ERROR', error.message); }
-      finally { button.disabled = false; button.textContent = 'Reset Local Fixture Scenario'; }
+      finally {
+        button.disabled = false;
+        button.textContent = 'Reset Local Fixture Scenario';
+        syncWorkflowButton();
+      }
     }
 
     $('exorciseBtn').addEventListener('click', triggerWorkflow);

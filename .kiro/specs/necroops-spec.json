@@ -1,7 +1,7 @@
 {
   "$schema": "https://kiro.dev/schemas/spec-v1.json",
   "name": "NecroOps Local Fixture Specification",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "hackathon": "Kiroween 2026",
   "runtimeStatus": "local-fixture-prototype",
   "description": "Requirements for a local, in-memory demonstration of modeled inventory analysis, fixture-specific code examples, and a deterministic numerical safety gate. It is not an AWS integration specification in operation.",
@@ -14,11 +14,24 @@
     "fixtureWorkloads": {
       "count": 5,
       "modeledOnly": true,
-      "riskThresholds": {
-        "critical": 80,
-        "warning": 40,
-        "safe": 20
-      }
+      "riskStatusBands": [
+        {
+          "minimumInclusive": 80,
+          "status": "CRITICAL_HAUNTED"
+        },
+        {
+          "minimumInclusive": 40,
+          "status": "EERIE_WARNING"
+        },
+        {
+          "minimumInclusive": 20,
+          "status": "LOW_RISK_FIXTURES"
+        },
+        {
+          "minimumInclusive": 0,
+          "status": "SANCTIFIED_CLEAN"
+        }
+      ]
     },
     "safetyInvariants": [
       {
@@ -35,7 +48,7 @@
       },
       {
         "id": "INV-STATE-01",
-        "description": "Re-running a simulated cleanup on an already transitioned fixture returns ALREADY_EXORCISED without a second receipt.",
+        "description": "A sequential rerun using the latest reconstructed local browser session returns ALREADY_EXORCISED without a second receipt. This local stateless demo does not claim transactional coordination for simultaneous duplicate HTTP submissions, and an earlier still-valid cookie can replay its earlier local snapshot until expiry.",
         "strict": true
       }
     ]
