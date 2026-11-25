@@ -105,8 +105,19 @@ function staticBoundaryScan() {
 function buildAuditRecord({ ciOutput, resetSmoke }) {
   const tapPass = ciOutput.match(/# pass (\d+)/)?.[1];
   const namedNestedChecks = (ciOutput.match(/^    # Subtest:/gm) || []).length;
-  const gatePassed = /"passed": true,[\s\S]*?"trialsRequested": 100,[\s\S]*?"trialsPassed": 100/.test(ciOutput);
-  if (!tapPass || !gatePassed) fail('could not parse successful CI and 100/100 fixture-gate results');
+  const gateOutput = ciOutput.slice(ciOutput.lastIndexOf('> necro-ops@1.2.0 test:gate'));
+  const gateMethod = gateOutput.match(/"verificationMethod": "([^"]+)"/)?.[1];
+  const gateMinimum = Number(gateOutput.match(/"domainMinimumCents": (\d+)/)?.[1]);
+  const gateMaximum = Number(gateOutput.match(/"domainMaximumCents": (\d+)/)?.[1]);
+  const gateDomainValues = Number(gateOutput.match(/"domainValuesChecked": (\d+)/)?.[1]);
+  const gateRequested = Number(gateOutput.match(/"trialsRequested": (\d+)/)?.[1]);
+  const gatePassedCount = Number(gateOutput.match(/"trialsPassed": (\d+)/)?.[1]);
+  const gatePassed = gateMethod === 'exhaustive-integer-cent-domain'
+    && Number.isInteger(gateMinimum) && Number.isInteger(gateMaximum)
+    && gateDomainValues === gateMaximum - gateMinimum + 1
+    && gateRequested === gateDomainValues && gatePassedCount === gateDomainValues
+    && /"passed": true/.test(gateOutput);
+  if (!tapPass || !gatePassed) fail('could not parse successful CI and exhaustive fixture-gate results');
   const inventory = sourceInventory();
   const boundary = staticBoundaryScan();
   const baseCommit = run('git', ['rev-parse', 'HEAD']).trim();
@@ -146,7 +157,15 @@ function buildAuditRecord({ ciOutput, resetSmoke }) {
       failures: 0,
       nestedChecksPassed: namedNestedChecks,
       tapSummaryTestsPassed: Number(tapPass),
-      standaloneGate: { trialsRequested: 100, trialsPassed: 100, passed: true },
+      standaloneGate: {
+        verificationMethod: gateMethod,
+        domainMinimumCents: gateMinimum,
+        domainMaximumCents: gateMaximum,
+        domainValuesChecked: gateDomainValues,
+        trialsRequested: gateRequested,
+        trialsPassed: gatePassedCount,
+        passed: gatePassed
+      },
       note: 'Node TAP counts the outer suite in addition to the named nested checks. The standalone gate runs after the TAP suite.'
     },
     resetAndIdempotencySmoke: {
