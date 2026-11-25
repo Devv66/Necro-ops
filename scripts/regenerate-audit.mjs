@@ -24,6 +24,7 @@ function sha256(bytes) {
 
 function run(command, args) {
   const result = spawnSync(command, args, {
+    shell: process.platform === 'win32' && command === 'npm',
     cwd: projectRoot,
     encoding: 'utf8',
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false' }
@@ -128,7 +129,7 @@ function buildAuditRecord({ ciOutput, resetSmoke }) {
     scope: 'Complete version-controlled source inventory, deterministic local-fixture verification, four-band risk classification, exact-empty reset validation, signed fixed-lifetime browser-session behavior, dashboard/API boundary checks, sequential idempotency behavior, deployment configuration review, and truthful-claim review.',
     executionBoundary: 'All verified workflows use local in-memory fixtures. The audit did not connect to AWS, query CloudWatch or Cost Explorer, deploy a Lambda, execute Kiro Crew/CLI/Web, run a Kiro hook or power, or terminate an AWS resource.',
     generationBaseCommit: baseCommit,
-    auditedTreeIdentity: 'The normalized SHA-256 inventory below identifies the complete audited working tree independently of a Git commit. generationBaseCommit records the checked-out generator context before the publication commit and is not a claim that it is the final public commit. The inventory includes every version-controlled/non-ignored project file except this audit artifact itself. The three visible digest-reference lines are normalized to a fixed token before hashing to avoid an unavoidable artifact-hash self-reference; npm run audit:verify checks both the inventory and the displayed artifact digest.',
+    auditedTreeIdentity: 'The normalized SHA-256 inventory below identifies the complete audited working tree independently of a Git commit. generationBaseCommit records the checked-out generator context before the publication commit and is not a claim that it is the final public commit. The inventory includes every version-controlled/non-ignored project file except this audit artifact itself. The two visible digest-reference lines are normalized to a fixed token before hashing to avoid an unavoidable artifact-hash self-reference; npm run audit:verify checks both the inventory and the displayed artifact digest.',
     sourceInventory: {
       enumeration: 'git ls-files --cached --others --exclude-standard, sorted',
       fileCount: Object.keys(inventory).length,

@@ -25,9 +25,9 @@ Remove the old claimed action-certificate hash, especially:
 
 Use this exact audit statement instead:
 
-> **Verifiable local-fixture audit record:** `npm run ci` completed with 0 failures on the audited source inventory. Node reported 27 nested checks and 28 TAP tests including its outer wrapper; the separate local safety gate passed 100/100 seeded trials. The audit did not connect to AWS, run Kiro Crew/CLI/Web, execute a Kiro hook or power, deploy a Lambda, or terminate an AWS resource. The audit pins every version-controlled, non-ignored project file except its self-referential artifact, including `api/index.js` and `vercel.json`. `npm run audit:verify` checks the inventory and the documented digest references.
+> **Verifiable local-fixture audit record:** `npm run ci` completed with 0 failures on the audited source inventory. Node reported 33 passing TAP tests; the separate local safety gate exhaustively checked 1,499,969 integer-cent values from 32 through 1,500,000 cents, with all checks passing. The audit did not connect to AWS, run Kiro Crew/CLI/Web, execute a Kiro hook or power, deploy a Lambda, or terminate an AWS resource. The audit pins every version-controlled, non-ignored project file except its self-referential artifact, including `api/index.js` and `vercel.json`. `npm run audit:verify` checks the inventory and the documented digest references.
 >
-> **Complete audit artifact SHA-256:** `9fb2212ee64a1edd546472351ee21d29913f65827232d5d8d62d5f0abf90b975`
+> **Complete audit artifact SHA-256:** `909fde62fab94e1df8941a99292308c74a5ffe7c25f198561661efbbf11f1088`
 >
 > Verify it with `sha256sum docs/audit/necroops-fixture-mode-audit-log.json`.
 
@@ -39,7 +39,7 @@ Copy all content from:
 docs/DEVPOST_TRUTHFUL_REPLACEMENT.md
 ```
 
-The Story now matches the repaired code: local fixtures, explicit API-backed dashboard behavior, a 100-trial seeded numerical gate, unsigned receipt digests, and Kiro-oriented assets labelled as illustrative/unverified.
+The Story now matches the repaired code: local fixtures, explicit API-backed dashboard behavior, an exhaustive integer-cent safety gate covering 1,499,969 values from 32 through 1,500,000 cents, unsigned receipt digests, and Kiro-oriented assets labelled as illustrative/unverified.
 
 ## 4. Source and video links
 
