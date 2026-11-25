@@ -343,6 +343,10 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
     }
     const engine = sharedEngine || sessionContext.engine;
     const sendApiJson = async (statusCode, data) => {
+      if (remoteSessionStore && sessionContext.stale && req.method === 'POST' && statusCode >= 200 && statusCode < 300) {
+        return sendJson(res, 409, { error: 'Stale session cookie rejected. Use the refreshed cookie and retry.', code: 'STALE_SESSION_COOKIE' },
+          remoteLocalFixtureSessionHeader(req, sessionContext.session, localFixtureSessionSigningKey, now, productionRuntime));
+      }
       if (remoteSessionStore && sessionContext.dirty) {
         try {
           const updated = await remoteSessionStore.compareAndSwap(sessionContext.session.sessionId, sessionContext.session.revision,
@@ -364,10 +368,6 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
         }
       }
       if (remoteSessionStore) {
-        if (sessionContext.stale && req.method === 'POST' && statusCode >= 200 && statusCode < 300) {
-          return sendJson(res, 409, { error: 'Stale session cookie rejected. Use the refreshed cookie and retry.', code: 'STALE_SESSION_COOKIE' },
-            remoteLocalFixtureSessionHeader(req, sessionContext.session, localFixtureSessionSigningKey, now, productionRuntime));
-        }
         return sendJson(res, statusCode, data, remoteLocalFixtureSessionHeader(req, sessionContext.session, localFixtureSessionSigningKey, now, productionRuntime));
       }
       return sendJson(res, statusCode, data, useBrowserLocalFixtureSession
