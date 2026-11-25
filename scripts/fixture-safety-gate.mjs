@@ -1,13 +1,6 @@
 import { NecroOpsEngine } from '../src/engine.js';
 
-const argument = process.argv.find(value => value.startsWith('--trials='));
-const trials = argument ? Number(argument.slice('--trials='.length)) : 100;
-
-if (!Number.isInteger(trials) || trials < 1 || trials > 10_000) {
-  console.error('Usage: node scripts/fixture-safety-gate.mjs --trials=<integer 1..10000>');
-  process.exit(2);
-}
-
+// The cleanup gate is exhaustive over the configured integer-cent domain; it accepts no sampling-count options.
 const result = new NecroOpsEngine().runExhaustiveFixtureSafetyGate();
 console.log(JSON.stringify({
   executionMode: result.executionMode,
