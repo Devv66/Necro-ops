@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NecroOpsEngine } from './engine.js';
+import { createSupabaseSessionStore } from './supabase-session-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -239,49 +240,78 @@ function parseCookies(req) {
   }).filter(([name]) => name));
 }
 
+function remoteSessionCookie(encoded, signingKey, now) {
+  const envelope = decodeVerifiedLocalFixtureSession(encoded, signingKey);
+  if (!envelope || envelope.version !== 3) return null;
+  if (typeof envelope.sessionId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(envelope.sessionId)) return null;
+  if (!Number.isSafeInteger(envelope.revision) || envelope.revision < 0) return null;
+  if (!Number.isSafeInteger(envelope.issuedAt) || !Number.isSafeInteger(envelope.expiresAt)) return null;
+  if (envelope.expiresAt - envelope.issuedAt !== LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS) return null;
+  const currentTime = unixSeconds(now);
+  if (envelope.issuedAt > currentTime || envelope.expiresAt <= currentTime) return null;
+  return envelope;
+}
+
+async function remoteSessionContext(req, store, signingKey, now) {
+  const engine = new NecroOpsEngine();
+  const encoded = parseCookies(req)[LOCAL_FIXTURE_SESSION_COOKIE];
+  let session = remoteSessionCookie(encoded, signingKey, now);
+  let row = session ? await store.getSession(session.sessionId) : null;
+  const currentTime = unixSeconds(now);
+  if (!row || !row.session_id || new Date(row.expires_at).getTime() <= currentTime * 1000) {
+    const sessionId = crypto.randomUUID();
+    const expiresAt = new Date((currentTime + LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS) * 1000).toISOString();
+    row = await store.createSession(sessionId, expiresAt);
+    session = { version: 3, sessionId, revision: Number(row.revision), issuedAt: currentTime, expiresAt: currentTime + LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS };
+  }
+  const databaseRevision = Number(row.revision);
+  const ids = Array.isArray(row.exorcised_fixture_ids) ? row.exorcised_fixture_ids : [];
+  engine.restoreLocalFixtureSession({ version: 1, exorcisedFixtureIds: ids });
+  return {
+    engine,
+    stale: session.revision !== databaseRevision,
+    session: {
+      version: 3,
+      sessionId: row.session_id,
+      revision: databaseRevision,
+      issuedAt: session.issuedAt,
+      expiresAt: Math.floor(new Date(row.expires_at).getTime() / 1000)
+    },
+    dirty: false
+  };
+}
+
+function remoteLocalFixtureSessionHeader(req, session, signingKey, now, productionRuntime) {
+  const currentTime = unixSeconds(now);
+  const envelope = { version: 3, sessionId: session.sessionId, revision: session.revision, issuedAt: session.issuedAt, expiresAt: session.expiresAt };
+  const payload = Buffer.from(JSON.stringify(envelope)).toString('base64url');
+  const signature = signLocalFixtureSessionPayload(payload, signingKey);
+  const isHttps = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase() === 'https';
+  const secureCookie = productionRuntime || isHttps;
+  const remainingLifetime = Math.max(0, session.expiresAt - currentTime);
+  return { 'Set-Cookie': `${LOCAL_FIXTURE_SESSION_COOKIE}=${payload}.${signature}; Path=/; Max-Age=${remainingLifetime}; HttpOnly; SameSite=Lax${secureCookie ? '; Secure' : ''}` };
+}
+
 function engineFromLocalFixtureSession(req, signingKey, now) {
   const engine = new NecroOpsEngine();
   const encoded = parseCookies(req)[LOCAL_FIXTURE_SESSION_COOKIE];
   if (!encoded) return { engine, session: null };
-
   const session = decodeSignedLocalFixtureSession(encoded, signingKey, now);
-  if (session && engine.restoreLocalFixtureSession({
-    version: 1,
-    exorcisedFixtureIds: session.exorcisedFixtureIds
-  })) {
-    return { engine, session };
-  }
-
-  // An absent, expired, legacy-version, malformed, tampered, or semantically
-  // rejected session intentionally falls back to the default catalog; no
-  // client-supplied state is trusted.
+  if (session && engine.restoreLocalFixtureSession({ version: 1, exorcisedFixtureIds: session.exorcisedFixtureIds })) return { engine, session };
   return { engine, session: null };
 }
 
 function localFixtureSessionHeader(req, engine, signingKey, now, productionRuntime, existingSession) {
   const currentTime = unixSeconds(now);
   const session = existingSession
-    ? {
-        version: LOCAL_FIXTURE_SESSION_VERSION,
-        issuedAt: existingSession.issuedAt,
-        expiresAt: existingSession.expiresAt,
-        exorcisedFixtureIds: engine.exportLocalFixtureSession().exorcisedFixtureIds
-      }
-    : {
-        version: LOCAL_FIXTURE_SESSION_VERSION,
-        issuedAt: currentTime,
-        expiresAt: currentTime + LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS,
-        exorcisedFixtureIds: engine.exportLocalFixtureSession().exorcisedFixtureIds
-      };
+    ? { version: LOCAL_FIXTURE_SESSION_VERSION, issuedAt: existingSession.issuedAt, expiresAt: existingSession.expiresAt, exorcisedFixtureIds: engine.exportLocalFixtureSession().exorcisedFixtureIds }
+    : { version: LOCAL_FIXTURE_SESSION_VERSION, issuedAt: currentTime, expiresAt: currentTime + LOCAL_FIXTURE_SESSION_MAX_AGE_SECONDS, exorcisedFixtureIds: engine.exportLocalFixtureSession().exorcisedFixtureIds };
   const payload = Buffer.from(JSON.stringify(session)).toString('base64url');
   const signature = signLocalFixtureSessionPayload(payload, signingKey);
   const isHttps = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase() === 'https';
   const secureCookie = productionRuntime || isHttps;
   const remainingLifetime = session.expiresAt - currentTime;
-
-  return {
-    'Set-Cookie': `${LOCAL_FIXTURE_SESSION_COOKIE}=${payload}.${signature}; Path=/; Max-Age=${remainingLifetime}; HttpOnly; SameSite=Lax${secureCookie ? '; Secure' : ''}`
-  };
+  return { 'Set-Cookie': `${LOCAL_FIXTURE_SESSION_COOKIE}=${payload}.${signature}; Path=/; Max-Age=${remainingLifetime}; HttpOnly; SameSite=Lax${secureCookie ? '; Secure' : ''}` };
 }
 
 function staticIndex(res, publicDir, pathname) {
@@ -293,26 +323,51 @@ function staticIndex(res, publicDir, pathname) {
   return sendText(res, 200, fs.readFileSync(indexPath, 'utf8'), 'text/html; charset=utf-8');
 }
 
-export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, sessionSecret, now = Date.now } = {}) {
+export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, sessionSecret, now = Date.now, sessionStore } = {}) {
   const useBrowserLocalFixtureSession = !sharedEngine;
-  const localFixtureSessionSigningKey = useBrowserLocalFixtureSession
-    ? configuredLocalFixtureSessionSecret(sessionSecret)
-    : null;
+  const localFixtureSessionSigningKey = useBrowserLocalFixtureSession ? configuredLocalFixtureSessionSecret(sessionSecret) : null;
   const productionRuntime = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+  const supabaseConfigured = Boolean(process.env.NECROOPS_SUPABASE_URL && process.env.NECROOPS_SUPABASE_PUBLISHABLE_KEY && process.env.NECROOPS_SUPABASE_GATEWAY_SECRET);
+  const remoteSessionStore = useBrowserLocalFixtureSession ? (sessionStore || (supabaseConfigured ? createSupabaseSessionStore() : null)) : null;
+  if (useBrowserLocalFixtureSession && productionRuntime && !remoteSessionStore) throw new Error('Supabase-backed session storage is required in production.');
 
   return http.createServer(async (req, res) => {
-    const sessionContext = sharedEngine
-      ? null
-      : engineFromLocalFixtureSession(req, localFixtureSessionSigningKey, now);
+    let sessionContext = sharedEngine ? null : (remoteSessionStore
+      ? await remoteSessionContext(req, remoteSessionStore, localFixtureSessionSigningKey, now)
+      : engineFromLocalFixtureSession(req, localFixtureSessionSigningKey, now));
     const engine = sharedEngine || sessionContext.engine;
-    const sendApiJson = (statusCode, data) => sendJson(
-      res,
-      statusCode,
-      data,
-      useBrowserLocalFixtureSession
+    const sendApiJson = async (statusCode, data) => {
+      if (remoteSessionStore && sessionContext.dirty) {
+        try {
+          const updated = await remoteSessionStore.compareAndSwap(sessionContext.session.sessionId, sessionContext.session.revision,
+            engine.exportLocalFixtureSession().exorcisedFixtureIds, new Date(sessionContext.session.expiresAt * 1000).toISOString());
+          if (!updated || updated.changed !== true) {
+            const latest = await remoteSessionStore.getSession(sessionContext.session.sessionId);
+            if (latest) {
+              sessionContext.session.revision = Number(latest.revision);
+              sessionContext.session.expiresAt = Math.floor(new Date(latest.expires_at).getTime() / 1000);
+            }
+            return sendJson(res, 409, { error: 'Session changed in another request. Retry with the refreshed session cookie.', code: 'SESSION_CONFLICT' },
+              remoteLocalFixtureSessionHeader(req, sessionContext.session, localFixtureSessionSigningKey, now, productionRuntime));
+          }
+          sessionContext.session.revision = Number(updated.revision);
+        } catch (error) {
+          const failure = toHttpError(error);
+          return sendJson(res, failure.statusCode, { error: 'Session state could not be committed safely.', code: failure.code },
+            remoteLocalFixtureSessionHeader(req, sessionContext.session, localFixtureSessionSigningKey, now, productionRuntime));
+        }
+      }
+      if (remoteSessionStore) {
+        if (sessionContext.stale && req.method === 'POST' && statusCode >= 200 && statusCode < 300) {
+          return sendJson(res, 409, { error: 'Stale session cookie rejected. Use the refreshed cookie and retry.', code: 'STALE_SESSION_COOKIE' },
+            remoteLocalFixtureSessionHeader(req, sessionContext.session, localFixtureSessionSigningKey, now, productionRuntime));
+        }
+        return sendJson(res, statusCode, data, remoteLocalFixtureSessionHeader(req, sessionContext.session, localFixtureSessionSigningKey, now, productionRuntime));
+      }
+      return sendJson(res, statusCode, data, useBrowserLocalFixtureSession
         ? localFixtureSessionHeader(req, engine, localFixtureSessionSigningKey, now, productionRuntime, sessionContext.session)
-        : undefined
-    );
+        : undefined);
+    };
 
     try {
       const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -351,6 +406,7 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
         requireJsonContentType(req);
         const body = await parseJsonBody(req);
         const result = engine.resurrectLegacyCode(requiredResourceId(body));
+        if (remoteSessionStore) sessionContext.dirty = true;
         return sendApiJson(200, { success: true, executionMode: 'local-demo-fixture', result });
       }
 
@@ -359,6 +415,7 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
         requireJsonContentType(req);
         const body = await parseJsonBody(req);
         const receipt = engine.exorciseZombieResource(requiredResourceId(body), optionalReason(body));
+        if (remoteSessionStore) sessionContext.dirty = true;
         return sendApiJson(200, { success: true, executionMode: 'local-demo-fixture', receipt });
       }
 
@@ -368,6 +425,7 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
         const body = await parseJsonBody(req, { allowEmptyBody: false });
         requireEmptyObject(body);
         const reset = engine.resetLocalFixtureScenario();
+        if (remoteSessionStore) sessionContext.dirty = true;
         return sendApiJson(200, { success: true, executionMode: 'local-demo-fixture', reset });
       }
 
@@ -376,6 +434,7 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
         requireJsonContentType(req);
         const body = await parseJsonBody(req);
         const orchestration = engine.runKiroCrewOrchestration(requiredResourceId(body));
+        if (remoteSessionStore) sessionContext.dirty = true;
         return sendApiJson(200, { success: true, executionMode: 'local-demo-fixture', orchestration });
       }
 
