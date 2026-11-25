@@ -744,7 +744,7 @@ test('NecroOps local fixture suite', async (t) => {
     }
   });
 
-  await t.test('browser-session regression coverage records the disclosed stale-cookie and parallel snapshot limitation', async () => {
+  await t.test('local development fallback keeps its explicitly non-distributed session limitations documented', async () => {
     const { server, baseUrl } = await startBrowserSessionServer();
     try {
       const initial = await request(baseUrl, '/api/status');
@@ -791,9 +791,9 @@ test('NecroOps local fixture suite', async (t) => {
 
       const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
       const spec = JSON.parse(fs.readFileSync(path.join(projectRoot, '.kiro/specs/necroops-spec.json'), 'utf8'));
-      assert.match(readme, /does not transactionally coordinate simultaneous duplicate HTTP submissions/);
-      assert.match(readme, /earlier cookie can also replay its own earlier local snapshot/i);
-      assert.match(spec.entities.safetyInvariants.find(invariant => invariant.id === 'INV-STATE-01').description, /earlier still-valid cookie can replay/i);
+      assert.match(readme, /Local development without the Supabase gateway variables uses a process-local random signing key/);
+      assert.match(readme, /database compare-and-swap against the cookie's revision/i);
+      assert.match(spec.entities.safetyInvariants.find(invariant => invariant.id === 'INV-STATE-01').description, /stale cookies cannot replay prior snapshots/i);
     } finally {
       await stopServer(server);
     }
