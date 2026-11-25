@@ -38,19 +38,30 @@ This is a code-level property for a demo fixture—not approval to mutate cloud 
 
 The dashboard includes **Reset Local Fixture Scenario**. It sends `POST /api/reset` with the exact empty JSON object `{}` and restores the five local fixtures to the initial **88%** risk index and **$1,050/month** modeled total. Its `clearedTransitionCount` reports simulated state transitions reset, not persisted receipts: receipt contents are deliberately not stored in the browser session. Non-empty reset objects and invalid JSON shapes are rejected before any fixture state changes. The route does not reset, read, or change AWS, Kiro, or any external account.
 
-For deterministic Vercel behavior, production requires a server-held `NECROOPS_LOCAL_FIXTURE_SESSION_SECRET` of at least 32 UTF-8 bytes. The server HMAC-signs a fixed four-hour, `HttpOnly`, `SameSite=Lax` cookie containing only simulated transition IDs plus signed `issuedAt` and `expiresAt` timestamps, then reconstructs the fixture engine on each API request. The server validates the HMAC and temporal fields before trusting the payload; a valid session keeps its original four-hour expiry rather than extending it on ordinary requests. The cookie contains no receipt, fixture content, credential, cloud-account data, or external-resource identifier. A missing, unsupported-version, invalid, tampered, expired, or cleared cookie returns the browser to the default local scenario and receives a fresh default-session cookie; it is not cloud persistence. Production and Vercel responses always add the `Secure` flag. Local HTTP development remains usable without `Secure`, while forwarded HTTPS development requests also receive it. Local development without that variable uses a process-local random signing key, so its cookies intentionally expire when the server restarts.
+For production and Vercel deployments, browser sessions are persisted in the Supabase `public.necroops_sessions` table. The server issues a fixed four-hour, `HttpOnly`, `SameSite=Lax`, `Secure` cookie containing only a session UUID, a database revision, and signed `issuedAt`/`expiresAt` timestamps. Fixture transition IDs are stored server-side, not trusted from the cookie. The HMAC signature is verified before the cookie is used; version-2 stateless cookies are not accepted by the production session flow.
 
-The local cleanup is idempotent for **sequential requests that use the latest valid cookie returned by the preceding request**. This stateless browser-demo design does not transactionally coordinate simultaneous duplicate HTTP submissions; it must not be presented as a durable distributed idempotency system. A still-valid earlier cookie can also replay its own earlier local snapshot until expiry; this is not cloud persistence, conflict resolution, or a durable audit record.
+Vercel communicates with the Supabase `necroops-session-gateway` Edge Function using an HMAC-signed request. The Edge Function verifies that signature through a restricted database function and uses its server-held Supabase service-role credential to call the session RPCs. The service-role credential is never placed in Vercel environment variables, GitHub, or browser code. The gateway HMAC key is stored as a Vercel sensitive environment variable and as a private database secret; the publishable key is only an API identifier and does not grant table/RPC access.
 
-### Production session-signing configuration
+Every state-changing request uses an atomic database compare-and-swap against the cookie's revision. A stale signed cookie cannot restore an earlier snapshot: stale mutations receive HTTP `409 STALE_SESSION_COOKIE` or `409 SESSION_CONFLICT`, while a stale read returns the current database state and refreshes the cookie. Simultaneous mutations from the same session cannot both commit the same revision; one succeeds and competing writes receive HTTP `409`. The session lifetime is fixed at four hours and ordinary reads do not extend it. This is durable session state for the local simulator, not real AWS inventory or cloud remediation.
 
-Before deploying to Vercel, add a **Production** environment variable named `NECROOPS_LOCAL_FIXTURE_SESSION_SECRET` with a private value of at least 32 UTF-8 bytes. Generate a value locally, for example:
+Local development without the Supabase gateway variables uses a process-local random signing key and the older stateless development fallback. That fallback is intentionally not distributed across processes and can replay an earlier local snapshot; it is not the production configuration. Local HTTP development remains usable without `Secure`, while forwarded HTTPS requests receive it.
+
+### Production session configuration
+
+Vercel Production and Preview require these server-side environment variables:
+
+- `NECROOPS_LOCAL_FIXTURE_SESSION_SECRET`: private HMAC cookie-signing secret, at least 32 UTF-8 bytes.
+- `NECROOPS_SUPABASE_URL`: Supabase project URL.
+- `NECROOPS_SUPABASE_PUBLISHABLE_KEY`: Supabase publishable API key, used only as the Edge Function API identifier.
+- `NECROOPS_SUPABASE_GATEWAY_SECRET`: sensitive 48-byte hex HMAC key shared with the private database verifier.
+
+Generate independent secrets locally, for example:
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
-Do not commit or publish that value. Production intentionally fails closed when the variable is missing or too short; a process-local development key is used only outside production.
+Do not commit or publish either secret. The production Vercel handler fails closed if the Supabase gateway configuration is missing. The Supabase service-role key remains inside the Edge Function runtime.
 
 ## Kiro-oriented project assets
 
@@ -96,7 +107,7 @@ It returns a nonzero exit code if the local gate fails. The `.kiro/hooks/pre-pur
 - root `.kiro` asset paths and their runtime-boundary metadata;
 - dashboard source using same-origin API calls and its explicit reset control; and
 - isolated HTTP handling for success, malformed input, oversized bodies, missing routes, explicit mutation targets, exact-empty-object local reset, and no permissive CORS header; and
-- all four risk-status bands plus signed-cookie tampering, temporal expiry, legacy-version fallback, documented stale-cookie/parallel-snapshot limits, and production/Vercel `Secure` cookie behavior.
+- all four risk-status bands plus signed-cookie tampering, temporal expiry, legacy-version fallback, database-backed stale-cookie rejection, atomic concurrent mutation conflicts, and production/Vercel `Secure` cookie behavior.
 
 GitHub Actions is configured for Node 20 and 22. Read the actual workflow result rather than relying on a static badge.
 
