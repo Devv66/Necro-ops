@@ -329,7 +329,7 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
   const productionRuntime = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
   const supabaseConfigured = Boolean(process.env.NECROOPS_SUPABASE_URL && process.env.NECROOPS_SUPABASE_PUBLISHABLE_KEY && process.env.NECROOPS_SUPABASE_GATEWAY_SECRET);
   const remoteSessionStore = useBrowserLocalFixtureSession ? (sessionStore || (supabaseConfigured ? createSupabaseSessionStore() : null)) : null;
-  if (useBrowserLocalFixtureSession && productionRuntime && !remoteSessionStore) throw new Error('Supabase-backed session storage is required in production.');
+  if (useBrowserLocalFixtureSession && process.env.VERCEL === '1' && !remoteSessionStore) throw new Error('Supabase-backed session storage is required in Vercel production.');
 
   return http.createServer(async (req, res) => {
     let sessionContext;
