@@ -8,13 +8,13 @@ export function createSupabaseSessionStore({
   gatewaySecret = process.env.NECROOPS_SUPABASE_GATEWAY_SECRET,
   fetchImpl = fetch
 } = {}) {
-  if (!supabaseUrl || !publishableKey || !gatewaySecret || Buffer.byteLength(gatewaySecret, 'utf8') < 32) {
+  if (!supabaseUrl || !publishableKey || !gatewaySecret || !/^[0-9a-f]{96,}$/i.test(gatewaySecret)) {
     throw new Error('Supabase session gateway configuration is incomplete.');
   }
   const endpoint = new URL(SESSION_ENDPOINT_PATH, supabaseUrl).toString();
   async function call(payload) {
     const raw = JSON.stringify(payload);
-    const signature = crypto.createHmac('sha256', gatewaySecret).update(raw).digest('hex');
+    const signature = crypto.createHmac('sha256', Buffer.from(gatewaySecret, 'hex')).update(raw).digest('hex');
     const response = await fetchImpl(endpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json', apikey: publishableKey, 'x-necroops-signature': signature },
