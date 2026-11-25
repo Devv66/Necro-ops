@@ -104,6 +104,9 @@ function sendJson(res, statusCode, data, extraHeaders = {}) {
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'no-referrer',
+    'X-Frame-Options': 'DENY',
+    'Content-Security-Policy': "frame-ancestors 'none'",
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     ...extraHeaders
   });
   res.end(JSON.stringify(data, null, 2));
@@ -114,7 +117,10 @@ function sendText(res, statusCode, text, contentType = 'text/plain; charset=utf-
     'Content-Type': contentType,
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'no-referrer'
+     'Referrer-Policy': 'no-referrer',
+    'X-Frame-Options': 'DENY',
+    'Content-Security-Policy': "frame-ancestors 'none'",
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
   });
   res.end(text);
 }
@@ -216,7 +222,10 @@ function methodNotAllowed(res, allowed) {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'no-referrer'
+     'Referrer-Policy': 'no-referrer',
+    'X-Frame-Options': 'DENY',
+    'Content-Security-Policy': "frame-ancestors 'none'",
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
   });
   res.end(JSON.stringify({ error: 'Method not allowed.', code: 'METHOD_NOT_ALLOWED' }));
 }
@@ -314,7 +323,10 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
           Allow: 'GET, POST, OPTIONS',
           'Cache-Control': 'no-store',
           'X-Content-Type-Options': 'nosniff',
-          'Referrer-Policy': 'no-referrer'
+           'Referrer-Policy': 'no-referrer',
+          'X-Frame-Options': 'DENY',
+          'Content-Security-Policy': "frame-ancestors 'none'",
+          'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
         });
         return res.end();
       }
