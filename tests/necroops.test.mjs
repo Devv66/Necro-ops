@@ -919,6 +919,9 @@ test('NecroOps local fixture suite', async (t) => {
       assert.equal(queryStatus.response.status, 200);
       assert.equal(queryStatus.response.headers.get('cache-control'), 'no-store');
       assert.equal(queryStatus.response.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(queryStatus.response.headers.get('x-frame-options'), 'DENY');
+      assert.equal(queryStatus.response.headers.get('content-security-policy'), "frame-ancestors 'none'");
+      assert.equal(queryStatus.response.headers.get('permissions-policy'), 'camera=(), microphone=(), geolocation=()');
 
       const wrongStatusMethod = await request(baseUrl, '/api/status', { method: 'POST' });
       assert.equal(wrongStatusMethod.response.status, 405);
