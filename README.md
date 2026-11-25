@@ -16,7 +16,7 @@ The server and dashboard operate on a finite fixture catalog. The identifiers, c
 
 - a local modeled-cost and four-band risk scan across five fixture workloads, with thresholds at 80, 40, and 20;
 - fixture-specific JavaScript examples for two supplied legacy-code fixtures;
-- a deterministic, seeded 100-trial local numerical property gate;
+- a seeded sample test plus an exhaustive integer-cent domain verification for all settleable amounts from $0.32 through $15,000;
 - an in-memory simulated cleanup transition with sequential retry idempotency;
 - an explicit reset that restores all five local fixtures to the initial demo scenario; and
 - an unsigned SHA-256 digest over a canonical local-fixture receipt.
@@ -25,7 +25,7 @@ The initial local scenario totals **$1,050/month**. This is fixture data, not an
 
 ## Local safety property
 
-The local gate uses integer cents. For 100 seeded fixture values that can cover the modeled fixed fee, it checks:
+The local gate uses integer cents. For every integer-cent value from 32 cents through 1,500,000 cents (the full bounded settleable domain), the exhaustive gate checks:
 
 1. the fixture’s legacy fee rule and local JavaScript example rule produce the same fee and net values; and
 2. `net cents + fee cents = gross cents`.
@@ -87,11 +87,11 @@ It returns a nonzero exit code if the local gate fails. The `.kiro/hooks/pre-pur
 
 ## Test coverage
 
-`npm run ci` runs the Node suite plus the standalone 100-trial gate. The suite covers:
+`npm run ci` runs the Node suite plus the standalone exhaustive integer-cent-domain gate. The seeded 100-trial method remains available as supplementary deterministic testing, not as the cleanup gate. The suite covers:
 
 - immutable scan snapshots and explicit cleanup ordering;
 - fixture-specific code examples;
-- integer-cent math, boundary cases, reproducible seeds, and forced-gate-failure atomicity;
+- integer-cent math, exhaustive domain verification, boundary cases, reproducible seeded samples, and forced-gate-failure atomicity;
 - receipt digest recomputation and tamper detection;
 - root `.kiro` asset paths and their runtime-boundary metadata;
 - dashboard source using same-origin API calls and its explicit reset control; and
@@ -115,7 +115,7 @@ The artifact path is:
 docs/audit/necroops-fixture-mode-audit-log.json
 ```
 
-**Complete audit artifact SHA-256:** `9fb2212ee64a1edd546472351ee21d29913f65827232d5d8d62d5f0abf90b975`
+**Baseline release audit artifact SHA-256:** `9fb2212ee64a1edd546472351ee21d29913f65827232d5d8d62d5f0abf90b975` (this hash belongs to the pinned baseline release, not this remediation branch; regenerate the audit artifact and digest before merging).
 
 The inventory covers every version-controlled, non-ignored project file except the audit artifact itself (a file cannot include its own raw hash). To avoid a hash self-reference, the three documentation lines that repeat this artifact digest are normalized to a fixed token before their inventory hashes are calculated. `npm run audit:verify` checks the complete inventory, that normalization rule, and that the visible digest lines match the artifact bytes. The artifact's `generationBaseCommit` records the checked-out generator context before the publication commit; the normalized inventory, not that pre-commit field, identifies the audited tree. Historical audits remain historical; they are not evidence for a later source revision.
 

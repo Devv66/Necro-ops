@@ -8,7 +8,6 @@ const __filename = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(__filename), '..');
 const artifactPath = 'docs/audit/necroops-fixture-mode-audit-log.json';
 const dynamicDigestPaths = [
-  'README.md',
   'docs/DEVPOST_TRUTHFUL_REPLACEMENT.md',
   'docs/DEVPOST_UPDATE_COPY.md'
 ];
@@ -25,6 +24,7 @@ function sha256(bytes) {
 
 function run(command, args) {
   const result = spawnSync(command, args, {
+    shell: process.platform === 'win32' && command === 'npm',
     cwd: projectRoot,
     encoding: 'utf8',
     env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false' }
@@ -103,10 +103,21 @@ function staticBoundaryScan() {
 }
 
 function buildAuditRecord({ ciOutput, resetSmoke }) {
-  const tapPass = ciOutput.match(/# pass (\d+)/)?.[1];
-  const namedNestedChecks = (ciOutput.match(/^    # Subtest:/gm) || []).length;
-  const gatePassed = /"passed": true,[\s\S]*?"trialsRequested": 100,[\s\S]*?"trialsPassed": 100/.test(ciOutput);
-  if (!tapPass || !gatePassed) fail('could not parse successful CI and 100/100 fixture-gate results');
+  const tapPass = (ciOutput.match(/# pass (\d+)/) || ciOutput.match(/ℹ pass (\d+)/))?.[1];
+  const namedNestedChecks = (ciOutput.match(/^  ✔ /gm) || []).length;
+  const gateOutput = ciOutput.slice(ciOutput.lastIndexOf('> necro-ops@1.2.0 test:gate'));
+  const gateMethod = gateOutput.match(/"verificationMethod": "([^"]+)"/)?.[1];
+  const gateMinimum = Number(gateOutput.match(/"domainMinimumCents": (\d+)/)?.[1]);
+  const gateMaximum = Number(gateOutput.match(/"domainMaximumCents": (\d+)/)?.[1]);
+  const gateDomainValues = Number(gateOutput.match(/"domainValuesChecked": (\d+)/)?.[1]);
+  const gateRequested = Number(gateOutput.match(/"trialsRequested": (\d+)/)?.[1]);
+  const gatePassedCount = Number(gateOutput.match(/"trialsPassed": (\d+)/)?.[1]);
+  const gatePassed = gateMethod === 'exhaustive-integer-cent-domain'
+    && Number.isInteger(gateMinimum) && Number.isInteger(gateMaximum)
+    && gateDomainValues === gateMaximum - gateMinimum + 1
+    && gateRequested === gateDomainValues && gatePassedCount === gateDomainValues
+    && /"passed": true/.test(gateOutput);
+  if (!tapPass || !gatePassed) fail('could not parse successful CI and exhaustive fixture-gate results');
   const inventory = sourceInventory();
   const boundary = staticBoundaryScan();
   const baseCommit = run('git', ['rev-parse', 'HEAD']).trim();
@@ -118,7 +129,7 @@ function buildAuditRecord({ ciOutput, resetSmoke }) {
     scope: 'Complete version-controlled source inventory, deterministic local-fixture verification, four-band risk classification, exact-empty reset validation, signed fixed-lifetime browser-session behavior, dashboard/API boundary checks, sequential idempotency behavior, deployment configuration review, and truthful-claim review.',
     executionBoundary: 'All verified workflows use local in-memory fixtures. The audit did not connect to AWS, query CloudWatch or Cost Explorer, deploy a Lambda, execute Kiro Crew/CLI/Web, run a Kiro hook or power, or terminate an AWS resource.',
     generationBaseCommit: baseCommit,
-    auditedTreeIdentity: 'The normalized SHA-256 inventory below identifies the complete audited working tree independently of a Git commit. generationBaseCommit records the checked-out generator context before the publication commit and is not a claim that it is the final public commit. The inventory includes every version-controlled/non-ignored project file except this audit artifact itself. The three visible digest-reference lines are normalized to a fixed token before hashing to avoid an unavoidable artifact-hash self-reference; npm run audit:verify checks both the inventory and the displayed artifact digest.',
+    auditedTreeIdentity: 'The normalized SHA-256 inventory below identifies the complete audited working tree independently of a Git commit. generationBaseCommit records the checked-out generator context before the publication commit and is not a claim that it is the final public commit. The inventory includes every version-controlled/non-ignored project file except this audit artifact itself. The two visible digest-reference lines are normalized to a fixed token before hashing to avoid an unavoidable artifact-hash self-reference; npm run audit:verify checks both the inventory and the displayed artifact digest.',
     sourceInventory: {
       enumeration: 'git ls-files --cached --others --exclude-standard, sorted',
       fileCount: Object.keys(inventory).length,
@@ -146,7 +157,15 @@ function buildAuditRecord({ ciOutput, resetSmoke }) {
       failures: 0,
       nestedChecksPassed: namedNestedChecks,
       tapSummaryTestsPassed: Number(tapPass),
-      standaloneGate: { trialsRequested: 100, trialsPassed: 100, passed: true },
+      standaloneGate: {
+        verificationMethod: gateMethod,
+        domainMinimumCents: gateMinimum,
+        domainMaximumCents: gateMaximum,
+        domainValuesChecked: gateDomainValues,
+        trialsRequested: gateRequested,
+        trialsPassed: gatePassedCount,
+        passed: gatePassed
+      },
       note: 'Node TAP counts the outer suite in addition to the named nested checks. The standalone gate runs after the TAP suite.'
     },
     resetAndIdempotencySmoke: {

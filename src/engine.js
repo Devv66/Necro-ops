@@ -108,6 +108,7 @@ const FIXED_FEE_CENTS = 30;
 const MINIMUM_SETTLEABLE_AMOUNT_CENTS = 32;
 // The local property-test domain is deliberately bounded to $15,000.00.
 const MAXIMUM_SETTLEABLE_AMOUNT_CENTS = 1_500_000;
+let exhaustiveFixtureGateCache = null;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -188,6 +189,22 @@ export function calculateModernFixturePayment(amountCents) {
 }
 
 export function verifyFixtureReceipt(receipt) {
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) return false;
+  const requiredStringFields = ['receiptId', 'resourceId', 'resourceName', 'exorcisedAt', 'executionMode', 'operator', 'reason'];
+  if (requiredStringFields.some(field => typeof receipt[field] !== 'string' || receipt[field].length === 0)) return false;
+  if (receipt.executionMode !== 'local-demo-fixture') return false;
+  if (!Number.isFinite(receipt.modeledMonthlyChangeUSD) || receipt.modeledMonthlyChangeUSD < 0) return false;
+  if (!Number.isFinite(Date.parse(receipt.exorcisedAt))) return false;
+  if (!/^LOCAL-FIXTURE-RECEIPT-[A-F0-9]{8}$/.test(receipt.receiptId)) return false;
+  if (!ZOMBIE_CATALOG.some(fixture => fixture.id === receipt.resourceId)) return false;
+  const gate = receipt.propertyBasedSafetyGate;
+  if (!gate || typeof gate !== 'object' || gate.passed !== true ||
+      !Number.isInteger(gate.trialsRequested) || gate.trialsRequested < 1 ||
+      !Number.isInteger(gate.trialsPassed) || gate.trialsPassed !== gate.trialsRequested ||
+      gate.verificationMethod !== 'exhaustive-integer-cent-domain' ||
+      !Number.isSafeInteger(gate.domainMinimumCents) || !Number.isSafeInteger(gate.domainMaximumCents) ||
+      gate.domainValuesChecked !== gate.domainMaximumCents - gate.domainMinimumCents + 1 ||
+      gate.seed !== null) return false;
   if (!receipt || typeof receipt !== 'object' || typeof receipt.receiptDigestSha256 !== 'string') return false;
   const { receiptDigestSha256, ...unsignedReceipt } = receipt;
   return sha256(canonicalize(unsignedReceipt)) === receiptDigestSha256;
@@ -196,10 +213,20 @@ export function verifyFixtureReceipt(receipt) {
 function paymentModernExample() {
   return `// Local JavaScript example only — not deployed to AWS.
 export async function handler(event) {
-  const payload = JSON.parse(event.body || '{}');
-  const amountCents = Math.round(Number(payload.amount) * 100);
-  if (!Number.isInteger(amountCents) || amountCents < 32) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Amount must cover the fixture fee.' }) };
+  let payload;
+  try {
+    payload = JSON.parse(event.body || '{}');
+  } catch {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Malformed JSON body.' }) };
+  }
+  const amount = payload.amount;
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > 15000) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Amount must be a positive finite number no greater than 15000.' }) };
+  }
+  const rawCents = amount * 100;
+  const amountCents = Math.round(rawCents);
+  if (!Number.isSafeInteger(amountCents) || amountCents > 1500000 || Math.abs(rawCents - amountCents) > 0.00000001 || amountCents < 32) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Amount must use at most two decimal places and cover the fixture fee.' }) };
   }
   const variableFeeCents = Math.floor((amountCents * 29 + 500) / 1000);
   const feeCents = variableFeeCents + 30;
@@ -214,11 +241,16 @@ export async function handler(event) {
 function billingWebhookModernExample() {
   return `// Local JavaScript example only — not deployed to AWS.
 export async function handler(event) {
-  const payload = JSON.parse(event.body || '{}');
+  let payload;
+  try {
+    payload = JSON.parse(event.body || '{}');
+  } catch {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Malformed JSON body.' }) };
+  }
   if (typeof payload.token !== 'string' || payload.token.length === 0) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing token' }) };
   }
-  const fixtureTransactionId = 'FIXTURE_TX_' + payload.token.slice(-6);
+  const fixtureTransactionId = 'FIXTURE_TX_' + globalThis.crypto.randomUUID();
   return {
     statusCode: 200,
     body: JSON.stringify({ transactionId: fixtureTransactionId, status: 'PROCESSED_IN_LOCAL_DEMO' })
@@ -336,7 +368,7 @@ export class NecroOpsEngine {
       executionMode: 'local-demo-fixture',
       scannedAt: new Date().toISOString(),
       hauntedRiskIndex: score,
-      status: classifyFixtureRiskIndex(score),
+      status: activeZombies === 0 ? 'SANCTIFIED_CLEAN' : (classifyFixtureRiskIndex(score) === 'SANCTIFIED_CLEAN' ? 'LOW_RISK_FIXTURES' : classifyFixtureRiskIndex(score)),
       totalMonthlyWasteUSD: Number(totalWaste.toFixed(2)),
       annualWasteProjectionUSD: Number((totalWaste * 12).toFixed(2)),
       activeZombieCount: activeZombies,
@@ -381,7 +413,7 @@ export class NecroOpsEngine {
         input: amount
       };
     }
-    if (Math.abs(rawCents - amountCents) > 0.000001) {
+    if (Math.abs(rawCents - amountCents) > 0.00000001) {
       return { valid: false, reason: 'Input amount must have no more than two decimal places.', input: amount };
     }
 
@@ -450,6 +482,42 @@ export class NecroOpsEngine {
     };
   }
 
+  runExhaustiveFixtureSafetyGate() {
+    if (exhaustiveFixtureGateCache) return { ...exhaustiveFixtureGateCache, failures: [...exhaustiveFixtureGateCache.failures] };
+
+    const minimum = MINIMUM_SETTLEABLE_AMOUNT_CENTS;
+    const maximum = MAXIMUM_SETTLEABLE_AMOUNT_CENTS;
+    const domainValues = maximum - minimum + 1;
+    let checked = 0;
+    let passed = 0;
+    const failures = [];
+
+    for (let amountCents = minimum; amountCents <= maximum; amountCents += 1) {
+      const legacy = calculateLegacyFixturePayment(amountCents);
+      const modern = calculateModernFixturePayment(amountCents);
+      const equivalent = legacy.feeCents === modern.feeCents && legacy.netCents === modern.netCents;
+      const conserved = modern.netCents + modern.feeCents === amountCents;
+      checked += 1;
+      if (equivalent && conserved) passed += 1;
+      else if (failures.length < 20) failures.push({ amountCents, equivalent, conserved });
+    }
+
+    exhaustiveFixtureGateCache = {
+      executionMode: 'local-demo-fixture',
+      verificationMethod: 'exhaustive-integer-cent-domain',
+      property: 'Legacy and modern fixture fee/net agree and fee plus net conserves gross for every settleable integer-cent amount.',
+      domainMinimumCents: minimum,
+      domainMaximumCents: maximum,
+      domainValuesChecked: checked,
+      trialsRequested: checked,
+      trialsPassed: passed,
+      seed: null,
+      passed: checked === domainValues && passed === domainValues && failures.length === 0,
+      failures
+    };
+    return { ...exhaustiveFixtureGateCache, failures: [...exhaustiveFixtureGateCache.failures] };
+  }
+
   exorciseZombieResource(resourceId, reason = 'Local fixture property-based safety gate passed.') {
     const resource = this.getResource(resourceId);
     if (resource.status === 'EXORCISED') {
@@ -461,7 +529,7 @@ export class NecroOpsEngine {
       };
     }
 
-    const safetyGate = this.runPropertyBasedTests(100);
+    const safetyGate = this.runExhaustiveFixtureSafetyGate();
     if (!safetyGate.passed) {
       throw engineError(
         `Local property-based safety gate failed: ${safetyGate.failures.length} trial(s) did not satisfy the fixture property.`,
@@ -484,6 +552,10 @@ export class NecroOpsEngine {
       executionMode: 'local-demo-fixture',
       operator: 'local-fixture-simulator',
       propertyBasedSafetyGate: {
+        verificationMethod: safetyGate.verificationMethod,
+        domainMinimumCents: safetyGate.domainMinimumCents,
+        domainMaximumCents: safetyGate.domainMaximumCents,
+        domainValuesChecked: safetyGate.domainValuesChecked,
         trialsRequested: safetyGate.trialsRequested,
         trialsPassed: safetyGate.trialsPassed,
         passed: safetyGate.passed,

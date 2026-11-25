@@ -149,6 +149,32 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(after.resources.find(resource => resource.id === 'i-0f948a913bc89a712').status, 'EXORCISED');
   });
 
+  await t.test('remaining active fixtures can never be reported as clean', () => {
+    const singleHigh = new NecroOpsEngine();
+    for (const fixture of singleHigh.zombies) {
+      fixture.status = 'EXORCISED';
+      fixture.riskLevel = 'SAFE';
+    }
+    const high = singleHigh.zombies[0];
+    high.status = 'HAUNTED_ZOMBIE';
+    high.riskLevel = 'HIGH';
+    const highScan = singleHigh.scanCloudPerimeter();
+    assert.equal(highScan.activeZombieCount, 1);
+    assert.notEqual(highScan.status, 'SANCTIFIED_CLEAN');
+
+    const singleCritical = new NecroOpsEngine();
+    for (const fixture of singleCritical.zombies) {
+      fixture.status = 'EXORCISED';
+      fixture.riskLevel = 'SAFE';
+    }
+    const critical = singleCritical.zombies[0];
+    critical.status = 'HAUNTED_ZOMBIE';
+    critical.riskLevel = 'CRITICAL';
+    const criticalScan = singleCritical.scanCloudPerimeter();
+    assert.equal(criticalScan.activeZombieCount, 1);
+    assert.notEqual(criticalScan.status, 'SANCTIFIED_CLEAN');
+  });
+
   await t.test('cleanup candidates are explicitly ranked by risk then modeled cost', () => {
     const candidates = engine.getCleanupCandidates();
     assert.equal(candidates[0].id, 'i-0f948a913bc89a712');
@@ -190,6 +216,7 @@ test('NecroOps local fixture suite', async (t) => {
     for (const amount of [-10, 0, Number.NaN, Number.POSITIVE_INFINITY, 0.01, 0.31, 10.001, 15000.01, 1e20, Number.MAX_VALUE]) {
       assert.equal(engine.verifyPropertyBasedInvariants({ amount }).valid, false);
     }
+    assert.equal(engine.verifyPropertyBasedInvariants({ amount: 10.000000001 }).valid, false);
     const valid = engine.verifyPropertyBasedInvariants({ amount: 0.32 });
     assert.equal(valid.valid, true);
     assert.equal(valid.inputAmountCents, 32);
@@ -213,6 +240,38 @@ test('NecroOps local fixture suite', async (t) => {
     assert.deepEqual(body, { success: true, fee: expected.feeCents / 100, net: expected.netCents / 100 });
     const rejected = await handler({ body: JSON.stringify({ amount: 0.31 }) });
     assert.equal(rejected.statusCode, 400);
+    const fractionalCent = await handler({ body: JSON.stringify({ amount: 10.001 }) });
+    assert.equal(fractionalCent.statusCode, 400);
+    const tooLarge = await handler({ body: JSON.stringify({ amount: 15000.01 }) });
+    assert.equal(tooLarge.statusCode, 400);
+    const malformed = await handler({ body: '{invalid' });
+    assert.equal(malformed.statusCode, 400);
+  });
+
+  await t.test('generated webhook example does not expose token suffixes and creates unique fixture IDs', async () => {
+    const webhookExample = engine.resurrectLegacyCode('arn:aws:lambda:us-east-1:718293019283:function:billing-webhook-v1').modernizedExample;
+    const createHandler = new Function(`${webhookExample.replace('export async function handler', 'async function handler')}\nreturn handler;`);
+    const handler = createHandler();
+    const first = await handler({ body: JSON.stringify({ token: 'sensitive-token-abcdef' }) });
+    const second = await handler({ body: JSON.stringify({ token: 'sensitive-token-abcdef' }) });
+    const firstBody = JSON.parse(first.body);
+    const secondBody = JSON.parse(second.body);
+    assert.equal(first.statusCode, 200);
+    assert.equal(second.statusCode, 200);
+    assert.notEqual(firstBody.transactionId, secondBody.transactionId);
+    assert.doesNotMatch(firstBody.transactionId, /abcdef/);
+    assert.equal((await handler({ body: '{bad' })).statusCode, 400);
+  });
+
+  await t.test('cleanup gate exhaustively checks the complete bounded cent domain', () => {
+    const gate = engine.runExhaustiveFixtureSafetyGate();
+    assert.equal(gate.verificationMethod, 'exhaustive-integer-cent-domain');
+    assert.equal(gate.domainMinimumCents, 32);
+    assert.equal(gate.domainMaximumCents, 1500000);
+    assert.equal(gate.domainValuesChecked, 1499969);
+    assert.equal(gate.trialsPassed, 1499969);
+    assert.equal(gate.passed, true);
+    assert.equal(gate.seed, null);
   });
 
   await t.test('property gate is deterministic for a fixed seed and trial count', () => {
@@ -226,7 +285,7 @@ test('NecroOps local fixture suite', async (t) => {
 
   await t.test('failed gate leaves local resource state and receipt log unchanged', () => {
     const before = engine.scanCloudPerimeter();
-    engine.runPropertyBasedTests = () => ({ passed: false, failures: [{ trial: 1 }], trialsRequested: 100, trialsPassed: 99 });
+    engine.runExhaustiveFixtureSafetyGate = () => ({ passed: false, failures: [{ amountCents: 32 }], trialsRequested: 100, trialsPassed: 99 });
 
     assert.throws(
       () => engine.exorciseZombieResource('i-0f948a913bc89a712'),
@@ -243,13 +302,19 @@ test('NecroOps local fixture suite', async (t) => {
     const receipt = engine.exorciseZombieResource('i-0f948a913bc89a712', 'Test local receipt');
     assert.match(receipt.receiptId, /^LOCAL-FIXTURE-RECEIPT-/);
     assert.equal(receipt.executionMode, 'local-demo-fixture');
-    assert.equal(receipt.propertyBasedSafetyGate.trialsRequested, 100);
-    assert.equal(receipt.propertyBasedSafetyGate.trialsPassed, 100);
+    assert.equal(receipt.propertyBasedSafetyGate.trialsRequested, 1499969);
+    assert.equal(receipt.propertyBasedSafetyGate.trialsPassed, 1499969);
     assert.equal(verifyFixtureReceipt(receipt), true);
 
     const tampered = structuredClone(receipt);
     tampered.modeledMonthlyChangeUSD = 999999;
     assert.equal(verifyFixtureReceipt(tampered), false);
+    const missingResource = structuredClone(receipt);
+    delete missingResource.resourceId;
+    assert.equal(verifyFixtureReceipt(missingResource), false);
+    const wrongMode = structuredClone(receipt);
+    wrongMode.executionMode = 'aws-live';
+    assert.equal(verifyFixtureReceipt(wrongMode), false);
   });
 
   await t.test('cleanup is idempotent for sequential retries within one engine process', () => {
@@ -301,7 +366,7 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(workflow.updatedScan.activeZombieCount, 4);
     assert.equal(workflow.updatedScan.hauntedRiskIndex, 65);
     assert.equal(workflow.updatedScan.status, 'EERIE_WARNING');
-    assert.equal(workflow.localFixtureReceipt.propertyBasedSafetyGate.trialsPassed, 100);
+    assert.equal(workflow.localFixtureReceipt.propertyBasedSafetyGate.trialsPassed, 1499969);
 
     const repeat = engine.runKiroCrewOrchestration('i-0f948a913bc89a712');
     assert.equal(repeat.status, 'ALREADY_EXORCISED');
@@ -371,6 +436,10 @@ test('NecroOps local fixture suite', async (t) => {
     }
     assert.match(dashboard, /riskColor\(telemetry\.status\)/);
     assert.match(dashboard, /function syncWorkflowButton\(availableLabel = 'Run local fixture workflow'\)/);
+    assert.match(dashboard, /workflowInFlight/);
+    assert.match(dashboard, /resetInFlight/);
+    assert.match(dashboard, /\$\('crewFeed'\)\.replaceChildren\(\)/);
+
     assert.match(dashboard, /renderTelemetry\(data\.telemetry\);\s+syncWorkflowButton\(\);/);
     assert.match(dashboard, /clearedTransitionCount/);
     assert.doesNotMatch(dashboard, /local receipt\(s\) cleared/);
@@ -507,7 +576,7 @@ test('NecroOps local fixture suite', async (t) => {
       assert.equal(workflow.body.orchestration.status, 'EXORCISED');
       assert.equal(workflow.body.orchestration.mutated, true);
       assert.equal(workflow.body.orchestration.updatedScan.activeZombieCount, 4);
-      assert.equal(workflow.body.orchestration.localFixtureReceipt.propertyBasedSafetyGate.trialsPassed, 100);
+      assert.equal(workflow.body.orchestration.localFixtureReceipt.propertyBasedSafetyGate.trialsPassed, 1499969);
 
       const repeatedWorkflow = await request(baseUrl, '/api/kiro-crew/execute', {
         method: 'POST',
@@ -850,6 +919,9 @@ test('NecroOps local fixture suite', async (t) => {
       assert.equal(queryStatus.response.status, 200);
       assert.equal(queryStatus.response.headers.get('cache-control'), 'no-store');
       assert.equal(queryStatus.response.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(queryStatus.response.headers.get('x-frame-options'), 'DENY');
+      assert.equal(queryStatus.response.headers.get('content-security-policy'), "frame-ancestors 'none'");
+      assert.equal(queryStatus.response.headers.get('permissions-policy'), 'camera=(), microphone=(), geolocation=()');
 
       const wrongStatusMethod = await request(baseUrl, '/api/status', { method: 'POST' });
       assert.equal(wrongStatusMethod.response.status, 405);
@@ -892,7 +964,7 @@ test('NecroOps local fixture suite', async (t) => {
         body: JSON.stringify({ resourceId: 'vol-084920491823abf10', reason: 'Local test cleanup' })
       });
       assert.equal(directCleanup.response.status, 200);
-      assert.equal(directCleanup.body.receipt.propertyBasedSafetyGate.trialsPassed, 100);
+      assert.equal(directCleanup.body.receipt.propertyBasedSafetyGate.trialsPassed, 1499969);
 
       const idempotentCleanup = await request(baseUrl, '/api/exorcise', {
         method: 'POST', headers: { 'content-type': 'application/json' },

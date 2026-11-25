@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test tests/necroops.test.mjs",
-    "test:gate": "node scripts/fixture-safety-gate.mjs --trials=100",
+    "test:gate": "node scripts/fixture-safety-gate.mjs",
     "ci": "npm test && npm run test:gate",
     "audit:refresh": "node scripts/regenerate-audit.mjs --write",
     "audit:verify": "node scripts/regenerate-audit.mjs --verify"
