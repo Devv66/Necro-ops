@@ -8,7 +8,6 @@ const __filename = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(__filename), '..');
 const artifactPath = 'docs/audit/necroops-fixture-mode-audit-log.json';
 const dynamicDigestPaths = [
-  'README.md',
   'docs/DEVPOST_TRUTHFUL_REPLACEMENT.md',
   'docs/DEVPOST_UPDATE_COPY.md'
 ];
@@ -103,8 +102,8 @@ function staticBoundaryScan() {
 }
 
 function buildAuditRecord({ ciOutput, resetSmoke }) {
-  const tapPass = ciOutput.match(/# pass (\d+)/)?.[1];
-  const namedNestedChecks = (ciOutput.match(/^    # Subtest:/gm) || []).length;
+  const tapPass = (ciOutput.match(/# pass (\d+)/) || ciOutput.match(/ℹ pass (\d+)/))?.[1];
+  const namedNestedChecks = (ciOutput.match(/^  ✔ /gm) || []).length;
   const gateOutput = ciOutput.slice(ciOutput.lastIndexOf('> necro-ops@1.2.0 test:gate'));
   const gateMethod = gateOutput.match(/"verificationMethod": "([^"]+)"/)?.[1];
   const gateMinimum = Number(gateOutput.match(/"domainMinimumCents": (\d+)/)?.[1]);
