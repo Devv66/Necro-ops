@@ -332,9 +332,15 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
   if (useBrowserLocalFixtureSession && productionRuntime && !remoteSessionStore) throw new Error('Supabase-backed session storage is required in production.');
 
   return http.createServer(async (req, res) => {
-    let sessionContext = sharedEngine ? null : (remoteSessionStore
-      ? await remoteSessionContext(req, remoteSessionStore, localFixtureSessionSigningKey, now)
-      : engineFromLocalFixtureSession(req, localFixtureSessionSigningKey, now));
+    let sessionContext;
+    try {
+      sessionContext = sharedEngine ? null : (remoteSessionStore
+        ? await remoteSessionContext(req, remoteSessionStore, localFixtureSessionSigningKey, now)
+        : engineFromLocalFixtureSession(req, localFixtureSessionSigningKey, now));
+    } catch (error) {
+      const failure = toHttpError(error);
+      return sendJson(res, failure.statusCode, { error: 'Session state is temporarily unavailable.', code: failure.code });
+    }
     const engine = sharedEngine || sessionContext.engine;
     const sendApiJson = async (statusCode, data) => {
       if (remoteSessionStore && sessionContext.dirty) {

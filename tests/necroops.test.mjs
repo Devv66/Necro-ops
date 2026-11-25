@@ -35,6 +35,27 @@ function startIsolatedServer(options = {}) {
   });
 }
 
+function createMemorySessionStore() {
+  const rows = new Map();
+  const copy = row => row ? { ...row, exorcised_fixture_ids: [...row.exorcised_fixture_ids] } : null;
+  return {
+    async createSession(sessionId, expiresAt) {
+      const row = { session_id: sessionId, revision: 0, exorcised_fixture_ids: [], expires_at: expiresAt };
+      rows.set(sessionId, row);
+      return copy(row);
+    },
+    async getSession(sessionId) { return copy(rows.get(sessionId)); },
+    async compareAndSwap(sessionId, expectedRevision, ids, expiresAt) {
+      const row = rows.get(sessionId);
+      if (!row || row.revision !== expectedRevision) return { changed: false, ...(copy(row) || {}) };
+      row.revision += 1;
+      row.exorcised_fixture_ids = [...ids];
+      row.expires_at = expiresAt;
+      return { changed: true, ...copy(row) };
+    }
+  };
+}
+
 async function startBrowserSessionServer(options = {}) {
   const server = createServer(options);
   return new Promise((resolve, reject) => {
@@ -504,7 +525,7 @@ test('NecroOps local fixture suite', async (t) => {
 
       delete process.env.NODE_ENV;
       process.env.VERCEL = '1';
-      let vercelServer = await startBrowserSessionServer({ sessionSecret: signingKey });
+      let vercelServer = await startBrowserSessionServer({ sessionSecret: signingKey, sessionStore: createMemorySessionStore() });
       try {
         const vercelStatus = await request(vercelServer.baseUrl, '/api/status');
         assert.match(vercelStatus.response.headers.get('set-cookie') || '', /; Secure/);
@@ -775,6 +796,62 @@ test('NecroOps local fixture suite', async (t) => {
       assert.match(spec.entities.safetyInvariants.find(invariant => invariant.id === 'INV-STATE-01').description, /earlier still-valid cookie can replay/i);
     } finally {
       await stopServer(server);
+    }
+  });
+
+  await t.test('Supabase-backed session revisions reject stale cookie replay and serialize concurrent mutations', async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousVercel = process.env.VERCEL;
+    process.env.NODE_ENV = 'development';
+    delete process.env.VERCEL;
+    const sessionStore = createMemorySessionStore();
+    const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret: crypto.randomBytes(48), sessionStore });
+    try {
+      const initial = await request(baseUrl, '/api/status');
+      const oldCookie = initial.response.headers.get('set-cookie')?.split(';')[0];
+      assert.match(oldCookie || '', /^necroops_local_fixture_state=/);
+
+      const firstMutation = await request(baseUrl, '/api/kiro-crew/execute', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: oldCookie },
+        body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+      });
+      assert.equal(firstMutation.response.status, 200);
+      const currentCookie = firstMutation.response.headers.get('set-cookie')?.split(';')[0];
+      assert.equal(firstMutation.body.orchestration.status, 'EXORCISED');
+
+      const staleReplay = await request(baseUrl, '/api/kiro-crew/execute', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: oldCookie },
+        body: JSON.stringify({ resourceId: 'vol-084920491823abf10' })
+      });
+      assert.equal(staleReplay.response.status, 409);
+      assert.ok(['SESSION_CONFLICT', 'STALE_SESSION_COOKIE'].includes(staleReplay.body.code));
+
+      const staleRead = await request(baseUrl, '/api/status', { headers: { cookie: oldCookie } });
+      assert.equal(staleRead.body.telemetry.activeZombieCount, 4);
+      const refreshedCookie = staleRead.response.headers.get('set-cookie')?.split(';')[0];
+      assert.ok(refreshedCookie);
+
+      const concurrentMutation = resourceId => request(baseUrl, '/api/kiro-crew/execute', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: currentCookie },
+        body: JSON.stringify({ resourceId })
+      });
+      const parallel = await Promise.all([
+        concurrentMutation('vol-084920491823abf10'),
+        concurrentMutation('arn:aws:lambda:us-east-1:718293019283:function:billing-webhook-v1')
+      ]);
+      assert.deepEqual(parallel.map(result => result.response.status).sort(), [200, 409]);
+      const finalStatus = await request(baseUrl, '/api/status', { headers: { cookie: refreshedCookie } });
+      assert.equal(finalStatus.body.telemetry.activeZombieCount, 3);
+      assert.equal(finalStatus.body.telemetry.exorcisedCount, 2);
+    } finally {
+      await stopServer(server);
+      if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNodeEnv;
+      if (previousVercel === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = previousVercel;
     }
   });
 
