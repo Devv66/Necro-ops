@@ -2,9 +2,9 @@
   "artifact": "NecroOps complete local-fixture audit record",
   "schemaVersion": 5,
   "status": "CURRENT_FOR_THE_COMPLETE_VERSION_CONTROLLED_SOURCE_INVENTORY_LISTED_BELOW",
-  "scope": "Complete version-controlled source inventory, deterministic local-fixture verification, four-band risk classification, exact-empty reset validation, signed fixed-lifetime browser-session behavior, dashboard/API boundary checks, sequential idempotency behavior, deployment configuration review, and truthful-claim review.",
-  "executionBoundary": "All verified workflows use local in-memory fixtures. The audit did not connect to AWS, query CloudWatch or Cost Explorer, deploy a Lambda, execute Kiro Crew/CLI/Web, run a Kiro hook or power, or terminate an AWS resource.",
-  "generationBaseCommit": "604fc974d24f83f8ab792c46ed3e3a47f555058f",
+  "scope": "Complete version-controlled source inventory, deterministic local-fixture verification, four-band risk classification, exact-empty reset validation, fixed-lifetime signed browser sessions, Supabase gateway adapter behavior, database compare-and-swap session semantics verified with deterministic in-memory test doubles, dashboard/API boundary checks, concurrent mutation conflict handling, deployment configuration review, and truthful-claim review.",
+  "executionBoundary": "All workload scans and cleanup transitions use local demo fixtures. Production browser-session persistence is implemented through the Supabase session gateway and atomic database compare-and-swap; automated tests exercise the server/store contract with deterministic in-memory test doubles and mocked gateway responses, not a live Supabase project. The audit did not verify live Supabase database state, connect to AWS, query CloudWatch or Cost Explorer, deploy a Lambda, execute Kiro Crew/CLI/Web, run a Kiro hook or power, or terminate an AWS resource.",
+  "generationBaseCommit": "4de7112c5559853f6f4163c29a28a68b217aacb1",
   "auditedTreeIdentity": "The normalized SHA-256 inventory below identifies the complete audited working tree independently of a Git commit. generationBaseCommit records the checked-out generator context before the publication commit and is not a claim that it is the final public commit. The inventory includes every version-controlled/non-ignored project file except this audit artifact itself. The two visible digest-reference lines are normalized to a fixed token before hashing to avoid an unavoidable artifact-hash self-reference; npm run audit:verify checks both the inventory and the displayed artifact digest.",
   "sourceInventory": {
     "enumeration": "git ls-files --cached --others --exclude-standard, sorted",
@@ -22,7 +22,7 @@
     }
   },
   "sourceFileNormalizedSha256": {
-    ".github/workflows/test.yml": "f13b9582691e3f01a2626c24f93c16295a0f05c766d662034b63caa4afebbfee",
+    ".github/workflows/test.yml": "2d6b7a34b7ba52b27f05b86763a121856789bfb55102fa5e526ea00af749d521",
     ".gitignore": "7b7668078fdfe2d790ccae2c33043027160ecdd60784094a2061a9cf4a92f977",
     ".kiro/agents/exorcist-agent.json": "58445d43bd5d2573911ea4c2191f30cb0c8cecacdd6c44930d67c50694a961d9",
     ".kiro/agents/necromancer-agent.json": "8f6a9845b62ff185ed314585263306c645438ffaf9ec325eb0cd41a0af00122d",
@@ -33,17 +33,17 @@
     ".kiro/specs/necroops-spec.json": "f53d2a55a79a7951895f846526d1617ebed671627a8f7b5cc0eaa0a91940e1b1",
     ".kiro/steering/agent-guidelines.md": "3906764b4e52edea1710e2a968cf6f42549189d276fb42e89e554463b8b927ed",
     "LICENSE": "65e3ba2a12096f9b76082310509ffbdc39d55fa9af71bd50f8d8f2f98b734b2c",
-    "README.md": "a02ae4b2df9683fff97056474b302558843ba190eb765b3bc658d01c37f8cb97",
+    "README.md": "7715ec35bb816e817397349569fc0f986d47fa6b4271ad040071f7b6c107f186",
     "api/index.js": "b9ccc1ccafdb2d4476d8a94ad0eac443d1e5ab74128ed53428110cd02e9d187a",
-    "docs/DEVPOST_TRUTHFUL_REPLACEMENT.md": "6840944e999e67e51eed01f5c2026df7a4b8db8d8e977d116513047a4a1a68a0",
-    "docs/DEVPOST_UPDATE_COPY.md": "d1dbd42484e718a7298a16be41e27a4e72e6711f02202de925c1cdf27b753ad6",
-    "docs/KIROWEEN_2026_BLOG_DRAFT.md": "67e9e573c6cfeca092a62491ae25c721111c25013720809f20875c04b78c3b74",
+    "docs/DEVPOST_TRUTHFUL_REPLACEMENT.md": "f7383bd5442cbb45d1d08785ed54fcca23ad5e42f4e971636aea361fa1d29e97",
+    "docs/DEVPOST_UPDATE_COPY.md": "2b3640ec9efe7b3c947a2571e2fcb794839aab252bd568a09aa9b6ee35ff53f7",
+    "docs/KIROWEEN_2026_BLOG_DRAFT.md": "e075e5825a14842a34c5340c9fb5c7548f7d3f0a7b950ce7800bafd43053d665",
     "docs/audit/necroops-audit-log.json": "8f7903da2286c8b8eac22642661a57f244c570ba6f374539d34fe442840a391b",
     "package-lock.json": "0c091c05aadeb3672645122cb492ff4d83dd850b63d25072ea3bf893dc405ee4",
     "package.json": "c3977fdb0445a1c9acf07cb616e6577a55a729d364933b61f871d85fb61216bc",
     "public/index.html": "a6502fce03ff943f78e82561efc0fe01882efb366739d6c17894d67260f02225",
     "scripts/fixture-safety-gate.mjs": "9f0f828bbc54c248cd3369d187605b9d42d70431540874b691173f0eaf951f13",
-    "scripts/regenerate-audit.mjs": "374e6ba517d59c3985bd06fe7a710a706c649c3d819b4d7791495a92149bbe28",
+    "scripts/regenerate-audit.mjs": "487c78f2ea2e3f4ea7525c919e4a2502c634d28fa83ad365457ab75393767c5e",
     "src/engine.js": "40692edc073f2b8e06fe6f3a29191e46aefa99e012886955f760e799fbdd9052",
     "src/server.js": "d977560e9322e2db198b5221fc4ff9b7a3f5287a8c104b9e331783734541e4f8",
     "src/supabase-session-store.js": "e2ca630daace8c7c6400f6ae026de6e6208409da2a40fa1f46eafb978f4b0980",
@@ -64,7 +64,7 @@
   "automatedTestResult": {
     "command": "npm run ci",
     "failures": 0,
-    "nestedChecksPassed": 48,
+    "nestedChecksPassed": 0,
     "tapSummaryTestsPassed": 49,
     "standaloneGate": {
       "verificationMethod": "exhaustive-integer-cent-domain",
@@ -95,12 +95,17 @@
       "totalMonthlyWasteUSDAfterReset": 1050,
       "suggestedCleanupFixtureIdAfterReset": "i-0f948a913bc89a712"
     },
-    "boundary": "The engine smoke covers local transitions. Browser-facing API tests additionally verify an HMAC-signed HttpOnly local-fixture session cookie with server-enforced issuedAt/expiresAt validation, so Vercel warm-memory state is not the source of browser demo state. Sequential retries using the latest valid cookie are idempotent; simultaneous duplicate HTTP submissions are outside this stateless demo guarantee. This remains simulated local data, not cloud persistence."
+    "boundary": "The engine smoke covers local transitions. Browser-facing API tests verify signed fixed-lifetime cookies, and the remote-session path is exercised with deterministic in-memory session-store doubles. Tests cover stale-cookie mutation rejection, stale-read refresh, concurrent compare-and-swap conflicts, one-winner semantics, no-op revision stability, and fixed four-hour expiry. The production adapter signs gateway requests and maps conflict/transport failures safely; gateway transport is unit-tested with mocked fetch responses. These tests do not contact a live Supabase project or independently prove its deployed schema, secrets, Edge Function, or database state. Workload state remains simulated fixture data, not cloud inventory."
   },
   "deploymentConfigurationReview": {
     "apiEntrypoint": "api/index.js is included in the complete inventory and passed syntax validation.",
     "vercelConfiguration": "vercel.json is included in the complete inventory and passed JSON parsing. It retains framework: null, api/index.js includeFiles, and catch-all rewrite configuration.",
-    "resetRoute": "Tests exercise POST /api/reset, wrong method, exact JSON content-type enforcement, empty-object-only reset validation, rejected-reset state preservation, reset restoration, a restored subsequent workflow, HMAC-signed fixed-lifetime session continuity across fresh engine instances, expiry/legacy fallback, and production/Vercel Secure-cookie behavior."
+    "resetRoute": "Tests exercise POST /api/reset, wrong method, exact JSON content-type enforcement, empty-object-only reset validation, rejected-reset state preservation, reset restoration, a restored subsequent workflow, signed fixed-lifetime session continuity, expiry/legacy fallback, production/Vercel Secure-cookie behavior, and remote-session compare-and-swap semantics using deterministic in-memory store doubles."
+  },
+  "sessionPersistenceReview": {
+    "productionDesign": "The Vercel browser-session path requires Supabase gateway configuration and uses a server-side HMAC-signed gateway request. The gateway is expected to validate the signature and invoke restricted session RPCs; the browser cookie contains a session identifier and revision, while fixture transition IDs remain server-side.",
+    "testedContract": "Automated tests use in-memory session-store doubles to verify stale revision rejection, current-state reads, atomic compare-and-swap conflict behavior, idempotent no-op revision stability, and fixed session expiry. The Supabase adapter is tested with mocked fetch responses for success, gateway conflict, transport failure, and server failure.",
+    "liveServiceVerification": "Not performed by this audit. No live Supabase request, deployed Edge Function inspection, database schema/RLS verification, secret-value verification, or production data-plane assertion is claimed."
   },
   "staticBoundaryScan": {
     "awsSdkHits": [],
