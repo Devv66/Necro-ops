@@ -4,7 +4,7 @@
   "status": "CURRENT_FOR_THE_COMPLETE_VERSION_CONTROLLED_SOURCE_INVENTORY_LISTED_BELOW",
   "scope": "Complete version-controlled source inventory, deterministic local-fixture verification, four-band risk classification, exact-empty reset validation, signed fixed-lifetime browser-session behavior, dashboard/API boundary checks, sequential idempotency behavior, deployment configuration review, and truthful-claim review.",
   "executionBoundary": "All verified workflows use local in-memory fixtures. The audit did not connect to AWS, query CloudWatch or Cost Explorer, deploy a Lambda, execute Kiro Crew/CLI/Web, run a Kiro hook or power, or terminate an AWS resource.",
-  "generationBaseCommit": "e2cdc0d861d35eba9eb5e2a5f54253c6b8d3f8c6",
+  "generationBaseCommit": "d436da5ced529dcb2e311a3ed00599e1576fd01d",
   "auditedTreeIdentity": "The normalized SHA-256 inventory below identifies the complete audited working tree independently of a Git commit. generationBaseCommit records the checked-out generator context before the publication commit and is not a claim that it is the final public commit. The inventory includes every version-controlled/non-ignored project file except this audit artifact itself. The two visible digest-reference lines are normalized to a fixed token before hashing to avoid an unavoidable artifact-hash self-reference; npm run audit:verify checks both the inventory and the displayed artifact digest.",
   "sourceInventory": {
     "enumeration": "git ls-files --cached --others --exclude-standard, sorted",
@@ -36,7 +36,7 @@
     "README.md": "a02ae4b2df9683fff97056474b302558843ba190eb765b3bc658d01c37f8cb97",
     "api/index.js": "b9ccc1ccafdb2d4476d8a94ad0eac443d1e5ab74128ed53428110cd02e9d187a",
     "docs/DEVPOST_TRUTHFUL_REPLACEMENT.md": "6840944e999e67e51eed01f5c2026df7a4b8db8d8e977d116513047a4a1a68a0",
-    "docs/DEVPOST_UPDATE_COPY.md": "04ff9b4cfb5c1f19fb760d1c4b7d8ed87372b6a22021616d9f1c4cda5bc5a4b4",
+    "docs/DEVPOST_UPDATE_COPY.md": "d1dbd42484e718a7298a16be41e27a4e72e6711f02202de925c1cdf27b753ad6",
     "docs/KIROWEEN_2026_BLOG_DRAFT.md": "67e9e573c6cfeca092a62491ae25c721111c25013720809f20875c04b78c3b74",
     "docs/audit/necroops-audit-log.json": "8f7903da2286c8b8eac22642661a57f244c570ba6f374539d34fe442840a391b",
     "package-lock.json": "0c091c05aadeb3672645122cb492ff4d83dd850b63d25072ea3bf893dc405ee4",
