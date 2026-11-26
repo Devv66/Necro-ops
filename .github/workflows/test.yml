@@ -7,6 +7,11 @@ on:
 permissions:
   contents: write
 
+# Serialize pushes to main so audit publication does not race itself.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   test:
     name: Node ${{ matrix.node }}
@@ -34,20 +39,41 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run audit:refresh
-      - run: npm run ci
-      - run: npm run audit:verify
-      - name: Commit refreshed audit artifact and digest references
+      - name: Refresh, verify, and publish audit artifact safely
         run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/audit/necroops-fixture-mode-audit-log.json docs/DEVPOST_TRUTHFUL_REPLACEMENT.md docs/DEVPOST_UPDATE_COPY.md
-          if ! git diff --cached --quiet; then
+
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+
+            npm run audit:refresh
+            npm run ci
+            npm run audit:verify
+
+            git add docs/audit/necroops-fixture-mode-audit-log.json docs/DEVPOST_TRUTHFUL_REPLACEMENT.md docs/DEVPOST_UPDATE_COPY.md
+            if git diff --cached --quiet; then
+              echo "Audit artifact is already current; no publication commit needed."
+              exit 0
+            fi
+
             git commit -m "chore: refresh verified fixture audit artifact"
-            git push origin HEAD:main
-          fi
+            if git push origin HEAD:main; then
+              echo "Published verified audit artifact."
+              exit 0
+            fi
+
+            echo "Main advanced during audit publication (attempt $attempt); retrying from latest main."
+            sleep $((attempt * 2))
+          done
+
+          echo "Could not publish audit artifact after three attempts."
+          exit 1
