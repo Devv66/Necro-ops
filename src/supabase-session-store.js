@@ -15,13 +15,25 @@ export function createSupabaseSessionStore({
   async function call(payload) {
     const raw = JSON.stringify(payload);
     const signature = crypto.createHmac('sha256', Buffer.from(gatewaySecret, 'hex')).update(raw).digest('hex');
-    const response = await fetchImpl(endpoint, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', apikey: publishableKey, 'x-necroops-signature': signature },
-      body: raw,
-      signal: AbortSignal.timeout(8000)
-    });
-    const text = await response.text();
+    let response;
+    let text;
+    try {
+      response = await fetchImpl(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', apikey: publishableKey, 'x-necroops-signature': signature },
+        body: raw,
+        signal: AbortSignal.timeout(8000)
+      });
+      text = await response.text();
+    } catch (cause) {
+      // A transport-level failure (network error, DNS failure, or gateway timeout)
+      // is a temporary availability problem, not an internal server error.
+      const error = new Error('Supabase session gateway is unavailable.');
+      error.statusCode = 503;
+      error.code = 'SESSION_STORE_UNAVAILABLE';
+      error.cause = cause;
+      throw error;
+    }
     if (!response.ok) {
       const error = new Error('Supabase session gateway request failed.');
       error.statusCode = response.status === 409 ? 409 : 503;

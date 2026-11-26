@@ -27,7 +27,7 @@ Use this exact audit statement instead:
 
 > **Verifiable local-fixture audit record:** `npm run ci` completed with 0 failures on the audited source inventory. Node reported 33 passing TAP tests; the separate local safety gate exhaustively checked 1,499,969 integer-cent values from 32 through 1,500,000 cents, with all checks passing. The audit did not connect to AWS, run Kiro Crew/CLI/Web, execute a Kiro hook or power, deploy a Lambda, or terminate an AWS resource. The audit pins every version-controlled, non-ignored project file except its self-referential artifact, including `api/index.js` and `vercel.json`. `npm run audit:verify` checks the inventory and the documented digest references.
 >
-> **Complete audit artifact SHA-256:** `909fde62fab94e1df8941a99292308c74a5ffe7c25f198561661efbbf11f1088`
+> **Complete audit artifact SHA-256:** `3fe586b0f38cf45b49b30da68b15996b32502732ef499952f9c94b1738a363e9`
 >
 > Verify it with `sha256sum docs/audit/necroops-fixture-mode-audit-log.json`.
 
