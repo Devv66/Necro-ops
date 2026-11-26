@@ -4,7 +4,7 @@
   "status": "CURRENT_FOR_THE_COMPLETE_VERSION_CONTROLLED_SOURCE_INVENTORY_LISTED_BELOW",
   "scope": "Complete version-controlled source inventory, deterministic local-fixture verification, four-band risk classification, exact-empty reset validation, signed fixed-lifetime browser-session behavior, dashboard/API boundary checks, sequential idempotency behavior, deployment configuration review, and truthful-claim review.",
   "executionBoundary": "All verified workflows use local in-memory fixtures. The audit did not connect to AWS, query CloudWatch or Cost Explorer, deploy a Lambda, execute Kiro Crew/CLI/Web, run a Kiro hook or power, or terminate an AWS resource.",
-  "generationBaseCommit": "d1810f92630142e99d4f124d3404d7f6fb452df3",
+  "generationBaseCommit": "604fc974d24f83f8ab792c46ed3e3a47f555058f",
   "auditedTreeIdentity": "The normalized SHA-256 inventory below identifies the complete audited working tree independently of a Git commit. generationBaseCommit records the checked-out generator context before the publication commit and is not a claim that it is the final public commit. The inventory includes every version-controlled/non-ignored project file except this audit artifact itself. The two visible digest-reference lines are normalized to a fixed token before hashing to avoid an unavoidable artifact-hash self-reference; npm run audit:verify checks both the inventory and the displayed artifact digest.",
   "sourceInventory": {
     "enumeration": "git ls-files --cached --others --exclude-standard, sorted",
@@ -22,7 +22,7 @@
     }
   },
   "sourceFileNormalizedSha256": {
-    ".github/workflows/test.yml": "2d298647e272f14c566de834ff2ec50648b6914cd73a5758d348cb8d211c846c",
+    ".github/workflows/test.yml": "f13b9582691e3f01a2626c24f93c16295a0f05c766d662034b63caa4afebbfee",
     ".gitignore": "7b7668078fdfe2d790ccae2c33043027160ecdd60784094a2061a9cf4a92f977",
     ".kiro/agents/exorcist-agent.json": "58445d43bd5d2573911ea4c2191f30cb0c8cecacdd6c44930d67c50694a961d9",
     ".kiro/agents/necromancer-agent.json": "8f6a9845b62ff185ed314585263306c645438ffaf9ec325eb0cd41a0af00122d",
@@ -44,7 +44,7 @@
     "public/index.html": "a6502fce03ff943f78e82561efc0fe01882efb366739d6c17894d67260f02225",
     "scripts/fixture-safety-gate.mjs": "9f0f828bbc54c248cd3369d187605b9d42d70431540874b691173f0eaf951f13",
     "scripts/regenerate-audit.mjs": "374e6ba517d59c3985bd06fe7a710a706c649c3d819b4d7791495a92149bbe28",
-    "src/engine.js": "fd2a9bb9d36e6750c3bb1735ba2756e8219fb4badb54c6ff7bd5f4232207434a",
+    "src/engine.js": "40692edc073f2b8e06fe6f3a29191e46aefa99e012886955f760e799fbdd9052",
     "src/server.js": "d977560e9322e2db198b5221fc4ff9b7a3f5287a8c104b9e331783734541e4f8",
     "src/supabase-session-store.js": "e2ca630daace8c7c6400f6ae026de6e6208409da2a40fa1f46eafb978f4b0980",
     "tests/necroops.test.mjs": "06753647d8c745c2daa68768785857ac0a9ee51c8d6df541feefecb37cd8a18e",
