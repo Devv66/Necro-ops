@@ -205,7 +205,7 @@ export function verifyFixtureReceipt(receipt) {
       !Number.isSafeInteger(gate.domainMinimumCents) || !Number.isSafeInteger(gate.domainMaximumCents) ||
       gate.domainValuesChecked !== gate.domainMaximumCents - gate.domainMinimumCents + 1 ||
       gate.seed !== null) return false;
-  if (!receipt || typeof receipt !== 'object' || typeof receipt.receiptDigestSha256 !== 'string') return false;
+  if (typeof receipt.receiptDigestSha256 !== 'string') return false;
   const { receiptDigestSha256, ...unsignedReceipt } = receipt;
   return sha256(canonicalize(unsignedReceipt)) === receiptDigestSha256;
 }
@@ -364,11 +364,19 @@ export class NecroOpsEngine {
       ? 0
       : Math.min(100, Math.max(0, Math.round(activeZombies * 14 + criticalCount * 9)));
 
+    let status = 'SANCTIFIED_CLEAN';
+    if (activeZombies > 0) {
+      const classifiedStatus = classifyFixtureRiskIndex(score);
+      status = criticalCount > 0 && score < RISK_STATUS_THRESHOLDS.warning
+        ? 'EERIE_WARNING'
+        : (classifiedStatus === 'SANCTIFIED_CLEAN' ? 'LOW_RISK_FIXTURES' : classifiedStatus);
+    }
+
     return {
       executionMode: 'local-demo-fixture',
       scannedAt: new Date().toISOString(),
       hauntedRiskIndex: score,
-      status: activeZombies === 0 ? 'SANCTIFIED_CLEAN' : (criticalCount > 0 && score < RISK_STATUS_THRESHOLDS.warning ? 'EERIE_WARNING' : (classifyFixtureRiskIndex(score) === 'SANCTIFIED_CLEAN' ? 'LOW_RISK_FIXTURES' : classifyFixtureRiskIndex(score))),
+      status,
       totalMonthlyWasteUSD: Number(totalWaste.toFixed(2)),
       annualWasteProjectionUSD: Number((totalWaste * 12).toFixed(2)),
       activeZombieCount: activeZombies,
