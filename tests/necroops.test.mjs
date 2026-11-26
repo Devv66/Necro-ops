@@ -521,6 +521,26 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(spec.runtimeStatus, 'local-fixture-prototype');
     assert.equal(power.runtimeStatus, 'illustrative-unattached-manifest');
     assert.match(steering, /not automatically injected/i);
+
+    const agentPaths = [
+      '.kiro/agents/exorcist-agent.json',
+      '.kiro/agents/necromancer-agent.json',
+      '.kiro/agents/reaper-agent.json'
+    ];
+    const supportedToolSelectors = new Set(['read', 'write', 'shell', 'web', 'subagent', '@builtin', '*']);
+    for (const relativePath of agentPaths) {
+      const agent = JSON.parse(fs.readFileSync(path.join(projectRoot, relativePath), 'utf8'));
+      assert.equal(typeof agent.name, 'string', `${relativePath} has a name`);
+      assert.equal(typeof agent.description, 'string', `${relativePath} has a description`);
+      assert.match(agent.description, /illustrative/i, `${relativePath} documents its illustrative boundary`);
+      assert.equal(typeof agent.prompt, 'string', `${relativePath} uses Kiro's prompt field`);
+      assert.ok(agent.prompt.length > 40, `${relativePath} has a substantive prompt`);
+      assert.ok(Array.isArray(agent.tools) && agent.tools.length > 0, `${relativePath} has tool selectors`);
+      assert.ok(agent.tools.every(tool => supportedToolSelectors.has(tool) || tool.startsWith('@')),
+        `${relativePath} uses documented Kiro tool selectors`);
+      assert.ok(Array.isArray(agent.resources) && agent.resources.length > 0, `${relativePath} provides project context`);
+      assert.equal(Object.hasOwn(agent, 'systemPrompt'), false, `${relativePath} must use prompt, not systemPrompt`);
+    }
   });
 
   await t.test('dashboard source requests same-origin API state rather than using timer-only success', () => {

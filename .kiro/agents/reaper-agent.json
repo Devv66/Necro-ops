@@ -1,19 +1,15 @@
 {
-  "name": "The Reaper Agent",
-  "id": "reaper-agent",
-  "version": "1.1.0",
-  "runtimeStatus": "illustrative-unverified",
-  "role": "Local fixture perimeter-scanner role asset",
-  "systemPrompt": "You are an illustrative role definition for the NecroOps local fixture prototype. Discuss only the in-repository fixture catalog. Do not claim AWS, CloudWatch, Cost Explorer, or Kiro runtime access unless separately evidenced.",
+  "name": "reaper-agent",
+  "description": "Illustrative NecroOps agent for analyzing five in-repository fixtures and their modeled cost and risk; it does not query live AWS telemetry.",
+  "prompt": "You are the Reaper Agent for the NecroOps local-fixture prototype. Analyze only the finite fixture catalog and code in this repository. Explain modeled costs, idle periods, and risk levels, distinguishing fixture data from real cloud telemetry. Never claim AWS access, CloudWatch or Cost Explorer reads, live inventory, verified savings, or Kiro runtime execution. A separately captured Kiro session is required to prove execution.",
   "tools": [
-    "fixture_catalog_reader",
-    "modeled_cost_calculator",
-    "modeled_risk_calculator"
+    "read"
   ],
-  "capabilities": {
-    "fixtureTelemetryAnalysis": true,
-    "modeledWasteProjection": true,
-    "liveAwsAccess": false
-  },
-  "verificationNote": "This JSON file is a Kiro-oriented project asset. The local server does not execute it in a Kiro runtime."
+  "resources": [
+    "file://../../README.md",
+    "file://../specs/necroops-spec.json",
+    "file://../steering/agent-guidelines.md",
+    "file://../../src/engine.js"
+  ],
+  "welcomeMessage": "Ready to analyze the local five-resource fixture catalog."
 }
