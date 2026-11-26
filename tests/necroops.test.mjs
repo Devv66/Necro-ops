@@ -138,6 +138,20 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(scan.status, 'CRITICAL_HAUNTED');
   });
 
+  await t.test('active critical fixtures cannot be classified below warning and active fixtures cannot be clean', () => {
+    for (let mask = 1; mask < (1 << ZOMBIE_CATALOG.length); mask += 1) {
+      engine.zombies.forEach((resource, index) => {
+        resource.status = (mask & (1 << index)) ? 'HAUNTED_ZOMBIE' : 'EXORCISED';
+      });
+      const scan = engine.scanCloudPerimeter();
+      assert.notEqual(scan.status, 'SANCTIFIED_CLEAN', `mask ${mask} still has active fixtures`);
+      if (scan.resources.some(resource => resource.status !== 'EXORCISED' && resource.riskLevel === 'CRITICAL')) {
+        assert.ok(['CRITICAL_HAUNTED', 'EERIE_WARNING'].includes(scan.status), `critical fixture mask ${mask} fell below warning`);
+      }
+    }
+  });
+
+
   await t.test('risk-status thresholds match the local specification at every boundary', () => {
     const spec = JSON.parse(fs.readFileSync(path.join(projectRoot, '.kiro/specs/necroops-spec.json'), 'utf8'));
     assert.deepEqual(RISK_STATUS_THRESHOLDS, { critical: 80, warning: 40, lowRisk: 20 });
