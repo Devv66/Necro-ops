@@ -1,58 +1,24 @@
-# NecroOps Devpost update — exact immediate changes
+# NecroOps — publication and audit status
 
-> Apply these edits only after the complete repaired source (including the root `.kiro/` tree) is publicly visible at `https://github.com/Devv66/Necro-ops`. Save the Devpost draft; do not make a final submission without reviewing the public URLs.
+This file supersedes the historical Devpost update instructions. The public Devpost project has already been updated and published; do not apply the obsolete placeholder-video or stateless-cookie instructions from earlier drafts.
 
-## 1. Replace the generic Try it out link only after the truthful replacement video is public
+- **Published project:** https://devpost.com/software/necroops-8x6e1l
+- **Live app:** https://necro-ops.vercel.app/
+- **Source:** https://github.com/Devv66/Necro-ops
+- **Demo:** https://www.youtube.com/watch?v=WhHkVcL07OM
 
-Do **not** use the historical video URL `https://www.youtube.com/watch?v=G-QZp8XgSVc`; its AWS/Kiro claims conflict with the current local-fixture source boundary.
+## Current technical boundary
 
-Publish the reviewed 60 FPS local-fixture demo on YouTube first. Then place that exact newly public YouTube URL in both Devpost fields:
+NecroOps is a local fixture FinOps prototype. It does not connect to AWS or perform real cloud cleanup. Production browser-session persistence is implemented through a Supabase session gateway with atomic database compare-and-swap. Automated tests exercise stale-cookie, concurrency, expiry, and adapter error-handling behavior using deterministic in-memory stores and mocked gateway responses; they do not constitute a live Supabase data-plane verification.
 
-```text
-Demo video
-Try it out
-```
+## Audit
 
-The two fields must be identical. Do not submit a placeholder, a Drive URL in a YouTube field, or the historical video URL.
+The source-controlled audit record is `docs/audit/necroops-fixture-mode-audit-log.json`. Its generator is `npm run audit:refresh`, and its integrity check is `npm run audit:verify`.
 
-## 2. Replace the old static hash statement
+**Complete audit artifact SHA-256:** `PENDING_AUDIT_DIGEST`
 
-Remove the old claimed action-certificate hash, especially:
+The digest is updated by the audit generator. Verify the published source revision with `npm run ci` and `npm run audit:verify`.
 
-```text
-8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4
-```
+## Scope exclusions
 
-Use this exact audit statement instead:
-
-> **Verifiable local-fixture audit record:** `npm run ci` completed with 0 failures on the audited source inventory. Node reported 49 passing TAP tests; the separate local safety gate exhaustively checked 1,499,969 integer-cent values from 32 through 1,500,000 cents, with all checks passing. The audit did not connect to AWS, run Kiro Crew/CLI/Web, execute a Kiro hook or power, deploy a Lambda, or terminate an AWS resource. The audit pins every version-controlled, non-ignored project file except its self-referential artifact, including `api/index.js` and `vercel.json`. `npm run audit:verify` checks the inventory and the documented digest references.
->
-> **Complete audit artifact SHA-256:** `c0d2cc782ad296d59a71c95b0556c6465c92bf14e8698866d15c87aa495af4d3`
->
-> Verify it with `sha256sum docs/audit/necroops-fixture-mode-audit-log.json`.
-
-## 3. Replace the entire Story
-
-Copy all content from:
-
-```text
-docs/DEVPOST_TRUTHFUL_REPLACEMENT.md
-```
-
-The Story now matches the repaired code: local fixtures, explicit API-backed dashboard behavior, an exhaustive integer-cent safety gate covering 1,499,969 values from 32 through 1,500,000 cents, unsigned receipt digests, and Kiro-oriented assets labelled as illustrative/unverified.
-
-## 4. Source and video links
-
-- **Source repository:** `https://github.com/Devv66/Necro-ops`
-- **Demo video / Try it out:** exact URL of the newly public, reviewed, truthful 60 FPS YouTube upload. Do not use `G-QZp8XgSVc`.
-
-## 5. Bonus Blog
-
-Publish `docs/KIROWEEN_2026_BLOG_DRAFT.md` as a public third-party post during the contest submission period. It must keep the phrase **Kiroween Hackathon 2026**. Add the blog’s public URL to Devpost only after it is genuinely public.
-
-## Never claim without separate proof
-
-- real AWS scanning, saving, deletion, termination, or resource state;
-- live Kiro Crew, CLI, Web, hook, power, or agent execution;
-- an actual signed cloud-action certificate; or
-- Kiro bonus-track eligibility.
+AWS account integration and real cloud actions remain intentionally out of scope. Kiro-oriented manifests are project assets; their presence is not evidence of live Kiro runtime execution.

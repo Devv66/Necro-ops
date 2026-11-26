@@ -18,18 +18,18 @@ Each asset now carries an explicit note that it is illustrative and unverified a
 
 ## The local safety experiment
 
-The simulator has a deliberately small safety property. Before it changes an in-memory fixture record, it runs 100 seeded trials using integer cents. For each accepted modeled amount, it checks that:
+The simulator has a deliberately small safety property. Before it changes an in-memory fixture record, it runs an exhaustive integer-cent gate over the bounded settleable domain (32 through 1,500,000 cents). For each amount, it checks that:
 
 1. the fixture’s legacy fee rule and local JavaScript example rule agree; and
 2. net cents plus fee cents equal the gross amount.
 
-Amounts that cannot cover the modeled fixed fee are rejected. A forced-failure test checks that a failed gate leaves both the local resource state and local receipt log unchanged.
+Amounts that cannot cover the modeled fixed fee are rejected. A forced-failure test checks that a failed gate leaves the local resource state and receipt log unchanged. The seeded 100-trial routine remains supplementary deterministic testing; it is not the cleanup gate.
 
 The result is not a production authorization or an AWS safety guarantee. It is a reproducible local demonstration of a narrow numerical claim.
 
 ## Making a demo honest in the UI
 
-The dashboard loads its ledger and metrics from the local same-origin API. Its button sends an explicit fixture target, renders the returned workflow result, and shows errors instead of timer-only success. The receipt is labeled as unsigned and includes a SHA-256 digest of the canonical local receipt fields. That digest can detect a changed receipt, but it is not a signature or proof of a real cloud action.
+The dashboard loads its ledger and metrics from the same-origin API. In production, browser-session state is persisted through the Supabase session gateway with an atomic database compare-and-swap revision check; tests exercise that contract with deterministic in-memory stores, not a live Supabase project. Its button sends an explicit fixture target, renders the returned workflow result, and shows errors instead of timer-only success. The receipt is labeled as unsigned and includes a SHA-256 digest of the canonical local receipt fields. That digest can detect a changed receipt, but it is not a signature or proof of a real cloud action.
 
 ## What I would take into a production version
 
