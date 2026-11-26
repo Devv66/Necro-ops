@@ -4,7 +4,7 @@
   "status": "CURRENT_FOR_THE_COMPLETE_VERSION_CONTROLLED_SOURCE_INVENTORY_LISTED_BELOW",
   "scope": "Complete version-controlled source inventory, deterministic local-fixture verification, four-band risk classification, exact-empty reset validation, fixed-lifetime signed browser sessions, Supabase gateway adapter behavior, database compare-and-swap session semantics verified with deterministic in-memory test doubles, dashboard/API boundary checks, concurrent mutation conflict handling, deployment configuration review, and truthful-claim review.",
   "executionBoundary": "All workload scans and cleanup transitions use local demo fixtures. Production browser-session persistence is implemented through the Supabase session gateway and atomic database compare-and-swap; automated tests exercise the server/store contract with deterministic in-memory test doubles and mocked gateway responses, not a live Supabase project. The audit did not verify live Supabase database state, connect to AWS, query CloudWatch or Cost Explorer, deploy a Lambda, execute Kiro Crew/CLI/Web, run a Kiro hook or power, or terminate an AWS resource.",
-  "generationBaseCommit": "2ff5969261d7338ccd5f4a0b0fd5e85304ac0e7c",
+  "generationBaseCommit": "e738317e4b4e1e0d1aebe00b8814d3fef5562401",
   "auditedTreeIdentity": "The normalized SHA-256 inventory below identifies the complete audited working tree independently of a Git commit. generationBaseCommit records the checked-out generator context before the publication commit and is not a claim that it is the final public commit. The inventory includes every version-controlled/non-ignored project file except this audit artifact itself. The two visible digest-reference lines are normalized to a fixed token before hashing to avoid an unavoidable artifact-hash self-reference; npm run audit:verify checks both the inventory and the displayed artifact digest.",
   "sourceInventory": {
     "enumeration": "git ls-files --cached --others --exclude-standard, sorted",
@@ -43,7 +43,7 @@
     "package.json": "c3977fdb0445a1c9acf07cb616e6577a55a729d364933b61f871d85fb61216bc",
     "public/index.html": "a6502fce03ff943f78e82561efc0fe01882efb366739d6c17894d67260f02225",
     "scripts/fixture-safety-gate.mjs": "9f0f828bbc54c248cd3369d187605b9d42d70431540874b691173f0eaf951f13",
-    "scripts/regenerate-audit.mjs": "3f4fc2d3cce122d4fa091b22a88ab6a826cd7723e10f383feadca18c2d9f523d",
+    "scripts/regenerate-audit.mjs": "e98af91d8599e23b94fad79010f02bc7a2d050c92611534ba15139616daa73b3",
     "src/engine.js": "40692edc073f2b8e06fe6f3a29191e46aefa99e012886955f760e799fbdd9052",
     "src/server.js": "d977560e9322e2db198b5221fc4ff9b7a3f5287a8c104b9e331783734541e4f8",
     "src/supabase-session-store.js": "e2ca630daace8c7c6400f6ae026de6e6208409da2a40fa1f46eafb978f4b0980",
@@ -64,7 +64,7 @@
   "automatedTestResult": {
     "command": "npm run ci",
     "failures": 0,
-    "nestedChecksPassed": 0,
+    "nestedChecksPassed": 48,
     "tapSummaryTestsPassed": 49,
     "standaloneGate": {
       "verificationMethod": "exhaustive-integer-cent-domain",
