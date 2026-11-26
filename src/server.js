@@ -412,7 +412,7 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
         requireJsonContentType(req);
         const body = await parseJsonBody(req);
         const result = engine.resurrectLegacyCode(requiredResourceId(body));
-        if (remoteSessionStore) sessionContext.dirty = true;
+        // Resurrection returns a read-only modernization example; it does not mutate fixture state.
         return sendApiJson(200, { success: true, executionMode: 'local-demo-fixture', result });
       }
 
