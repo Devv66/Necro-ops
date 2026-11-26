@@ -75,7 +75,7 @@ The current public audit artifact is:
 docs/audit/necroops-fixture-mode-audit-log.json
 ```
 
-**Complete audit artifact SHA-256:** `821706886b7699eb43fa6502007f7f09ba0ecc4f472b79856d62192fd000118a`
+**Complete audit artifact SHA-256:** `eda541b849c7b7725ced3e7d73483f67bf93524ee0eacbac10ddd5a0fd6d0bbc`
 
 This digest is refreshed from the exact source revision by `npm run audit:refresh`. The complete inventory includes `api/index.js` and `vercel.json`, and `npm run audit:verify` checks it before submission.
 
