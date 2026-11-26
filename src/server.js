@@ -343,7 +343,12 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
     }
     const engine = sharedEngine || sessionContext.engine;
     const sendApiJson = async (statusCode, data) => {
-      if (remoteSessionStore && sessionContext.stale && req.method === 'POST' && statusCode >= 200 && statusCode < 300) {
+      // Only requests that actually changed local fixture state are guarded by the
+      // stale/CAS path. A no-op mutation (e.g. cleaning an already-cleaned
+      // fixture, a reset with nothing cleared, or a repeated workflow) must not
+      // bump the persisted revision, because that would invalidate unrelated
+      // clients' cookies and turn an idempotent replay into a spurious conflict.
+      if (remoteSessionStore && sessionContext.stale && sessionContext.dirty && req.method === 'POST' && statusCode >= 200 && statusCode < 300) {
         return sendJson(res, 409, { error: 'Stale session cookie rejected. Use the refreshed cookie and retry.', code: 'STALE_SESSION_COOKIE' },
           remoteLocalFixtureSessionHeader(req, sessionContext.session, localFixtureSessionSigningKey, now, productionRuntime));
       }
@@ -412,7 +417,7 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
         requireJsonContentType(req);
         const body = await parseJsonBody(req);
         const result = engine.resurrectLegacyCode(requiredResourceId(body));
-        if (remoteSessionStore) sessionContext.dirty = true;
+        // Resurrection returns a read-only modernization example; it does not mutate fixture state.
         return sendApiJson(200, { success: true, executionMode: 'local-demo-fixture', result });
       }
 
@@ -421,7 +426,7 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
         requireJsonContentType(req);
         const body = await parseJsonBody(req);
         const receipt = engine.exorciseZombieResource(requiredResourceId(body), optionalReason(body));
-        if (remoteSessionStore) sessionContext.dirty = true;
+        if (remoteSessionStore && receipt.status !== 'ALREADY_EXORCISED') sessionContext.dirty = true;
         return sendApiJson(200, { success: true, executionMode: 'local-demo-fixture', receipt });
       }
 
@@ -431,7 +436,7 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
         const body = await parseJsonBody(req, { allowEmptyBody: false });
         requireEmptyObject(body);
         const reset = engine.resetLocalFixtureScenario();
-        if (remoteSessionStore) sessionContext.dirty = true;
+        if (remoteSessionStore && reset.clearedTransitionCount > 0) sessionContext.dirty = true;
         return sendApiJson(200, { success: true, executionMode: 'local-demo-fixture', reset });
       }
 
@@ -440,7 +445,7 @@ export function createServer({ engine: sharedEngine, publicDir = PUBLIC_DIR, ses
         requireJsonContentType(req);
         const body = await parseJsonBody(req);
         const orchestration = engine.runKiroCrewOrchestration(requiredResourceId(body));
-        if (remoteSessionStore) sessionContext.dirty = true;
+        if (remoteSessionStore && orchestration.mutated === true) sessionContext.dirty = true;
         return sendApiJson(200, { success: true, executionMode: 'local-demo-fixture', orchestration });
       }
 

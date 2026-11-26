@@ -15,6 +15,7 @@ import {
   ZOMBIE_CATALOG
 } from '../src/engine.js';
 import { createServer } from '../src/server.js';
+import { createSupabaseSessionStore } from '../src/supabase-session-store.js';
 import vercelHandler from '../api/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -54,6 +55,72 @@ function createMemorySessionStore() {
       return { changed: true, ...copy(row) };
     }
   };
+}
+
+// A session store whose compare-and-swap operations are queued and only applied
+// when the test releases them. This makes concurrent CAS interleavings fully
+// deterministic without relying on wall-clock timing.
+function createQueuedSessionStore() {
+  const rows = new Map();
+  const casQueue = [];
+  const casWaiters = [];
+  let casCalls = 0;
+  const copy = row => row ? { ...row, exorcised_fixture_ids: [...row.exorcised_fixture_ids] } : null;
+  const applyCas = (sessionId, expectedRevision, ids, expiresAt) => {
+    const row = rows.get(sessionId);
+    if (!row || row.revision !== expectedRevision) return { changed: false, ...(copy(row) || {}) };
+    row.revision += 1;
+    row.exorcised_fixture_ids = [...ids];
+    row.expires_at = expiresAt;
+    return { changed: true, ...copy(row) };
+  };
+  return {
+    async createSession(sessionId, expiresAt) {
+      const row = { session_id: sessionId, revision: 0, exorcised_fixture_ids: [], expires_at: expiresAt };
+      rows.set(sessionId, row);
+      return copy(row);
+    },
+    async getSession(sessionId) { return copy(rows.get(sessionId)); },
+    async compareAndSwap(sessionId, expectedRevision, ids, expiresAt) {
+      casCalls += 1;
+      return new Promise(resolve => {
+        casQueue.push(() => resolve(applyCas(sessionId, expectedRevision, ids, expiresAt)));
+        const waiter = casWaiters.shift();
+        if (waiter) waiter();
+      });
+    },
+    // Resolves the next time a compare-and-swap is queued.
+    waitForCas() { return new Promise(resolve => casWaiters.push(resolve)); },
+    casCalls() { return casCalls; },
+    casCount() { return casQueue.length; },
+    releaseNext() { const operation = casQueue.shift(); if (operation) operation(); },
+    rowFor(sessionId) { return copy(rows.get(sessionId)); }
+  };
+}
+
+function firstCookie(response) {
+  return response.headers.get('set-cookie')?.split(';')[0];
+}
+
+function sessionRevision(response) {
+  return sessionPayloadFromSetCookie(response.headers.get('set-cookie')).revision;
+}
+
+// Runs a remote-session (Supabase-style) test with a deterministic, non-production
+// runtime so cookie flags and secret requirements do not depend on the outer env.
+async function withBrowserSessionEnv(fn) {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousVercel = process.env.VERCEL;
+  process.env.NODE_ENV = 'development';
+  delete process.env.VERCEL;
+  try {
+    return await fn();
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+    if (previousVercel === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = previousVercel;
+  }
 }
 
 async function startBrowserSessionServer(options = {}) {
@@ -137,6 +204,20 @@ test('NecroOps local fixture suite', async (t) => {
     assert.equal(scan.hauntedRiskIndex, 88);
     assert.equal(scan.status, 'CRITICAL_HAUNTED');
   });
+
+  await t.test('active critical fixtures cannot be classified below warning and active fixtures cannot be clean', () => {
+    for (let mask = 1; mask < (1 << ZOMBIE_CATALOG.length); mask += 1) {
+      engine.zombies.forEach((resource, index) => {
+        resource.status = (mask & (1 << index)) ? 'HAUNTED_ZOMBIE' : 'EXORCISED';
+      });
+      const scan = engine.scanCloudPerimeter();
+      assert.notEqual(scan.status, 'SANCTIFIED_CLEAN', `mask ${mask} still has active fixtures`);
+      if (scan.resources.some(resource => resource.status !== 'EXORCISED' && resource.riskLevel === 'CRITICAL')) {
+        assert.ok(['CRITICAL_HAUNTED', 'EERIE_WARNING'].includes(scan.status), `critical fixture mask ${mask} fell below warning`);
+      }
+    }
+  });
+
 
   await t.test('risk-status thresholds match the local specification at every boundary', () => {
     const spec = JSON.parse(fs.readFileSync(path.join(projectRoot, '.kiro/specs/necroops-spec.json'), 'utf8'));
@@ -1088,6 +1169,450 @@ test('NecroOps local fixture suite', async (t) => {
     } finally {
       await stopServer(brokenEngineServer);
     }
+  });
+
+  await t.test('a cleanup failure leaves resource state and receipts unchanged', () => {
+    const before = engine.scanCloudPerimeter();
+    assert.throws(() => engine.exorciseZombieResource('not-a-fixture'), { code: 'RESOURCE_NOT_FOUND' });
+    const after = engine.scanCloudPerimeter();
+    assert.deepEqual(after.resources, before.resources);
+    assert.equal(after.exorcisedCount, before.exorcisedCount);
+    assert.equal(after.activeZombieCount, before.activeZombieCount);
+  });
+
+  await t.test('engine cleanup is idempotent across reset and never duplicates receipts', () => {
+    const target = 'vol-084920491823abf10';
+    engine.exorciseZombieResource(target);
+    const afterFirst = engine.exorcisedLog.length;
+    const repeat = engine.exorciseZombieResource(target);
+    assert.equal(repeat.status, 'ALREADY_EXORCISED');
+    assert.equal(engine.exorcisedLog.length, afterFirst, 'repeated cleanup must not duplicate receipts');
+
+    engine.resetLocalFixtureScenario();
+    assert.equal(engine.exorcisedLog.length, 0);
+    assert.equal(engine.scanCloudPerimeter().activeZombieCount, 5);
+
+    engine.exorciseZombieResource(target);
+    assert.equal(engine.exorcisedLog.length, 1);
+    assert.equal(engine.exorciseZombieResource(target).status, 'ALREADY_EXORCISED');
+    assert.equal(engine.exorcisedLog.length, 1, 'a repeat after reset must not duplicate the new receipt');
+  });
+
+  await t.test('remote cleanup of an already-cleaned fixture does not bump the session revision', async () => {
+    await withBrowserSessionEnv(async () => {
+      const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret: crypto.randomBytes(48), sessionStore: createMemorySessionStore() });
+      try {
+        const initial = await request(baseUrl, '/api/status');
+        const cookie = firstCookie(initial.response);
+        const baseRevision = sessionRevision(initial.response);
+
+        const first = await request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie },
+          body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+        });
+        assert.equal(first.response.status, 200);
+        assert.equal(sessionRevision(first.response), baseRevision + 1);
+
+        const repeat = await request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie: firstCookie(first.response) },
+          body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+        });
+        assert.equal(repeat.response.status, 200);
+        assert.equal(repeat.body.receipt.status, 'ALREADY_EXORCISED');
+        assert.equal(sessionRevision(repeat.response), baseRevision + 1, 'a no-op cleanup must not bump the session revision');
+
+        const status = await request(baseUrl, '/api/status', { headers: { cookie: firstCookie(repeat.response) } });
+        assert.equal(status.body.telemetry.activeZombieCount, 4);
+        assert.equal(status.body.telemetry.exorcisedCount, 1);
+      } finally {
+        await stopServer(server);
+      }
+    });
+  });
+
+  await t.test('remote reset only bumps the revision when it actually clears transitions', async () => {
+    await withBrowserSessionEnv(async () => {
+      const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret: crypto.randomBytes(48), sessionStore: createMemorySessionStore() });
+      try {
+        const initial = await request(baseUrl, '/api/status');
+        let cookie = firstCookie(initial.response);
+        const baseRevision = sessionRevision(initial.response);
+
+        const emptyReset = await request(baseUrl, '/api/reset', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}'
+        });
+        assert.equal(emptyReset.response.status, 200);
+        assert.equal(emptyReset.body.reset.clearedTransitionCount, 0);
+        assert.equal(sessionRevision(emptyReset.response), baseRevision, 'a reset with nothing cleared must not bump the revision');
+        cookie = firstCookie(emptyReset.response);
+
+        const cleanup = await request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie },
+          body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+        });
+        cookie = firstCookie(cleanup.response);
+        const afterCleanup = sessionRevision(cleanup.response);
+
+        const reset = await request(baseUrl, '/api/reset', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}'
+        });
+        assert.equal(reset.body.reset.clearedTransitionCount, 1);
+        assert.equal(sessionRevision(reset.response), afterCleanup + 1);
+        cookie = firstCookie(reset.response);
+
+        const secondReset = await request(baseUrl, '/api/reset', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}'
+        });
+        assert.equal(secondReset.body.reset.clearedTransitionCount, 0);
+        assert.equal(sessionRevision(secondReset.response), afterCleanup + 1, 'a repeated reset must not bump the revision');
+
+        const status = await request(baseUrl, '/api/status', { headers: { cookie: firstCookie(secondReset.response) } });
+        assert.equal(status.body.telemetry.activeZombieCount, 5);
+        assert.equal(status.body.telemetry.exorcisedCount, 0);
+      } finally {
+        await stopServer(server);
+      }
+    });
+  });
+
+  await t.test('remote repeated workflow does not bump the session revision', async () => {
+    await withBrowserSessionEnv(async () => {
+      const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret: crypto.randomBytes(48), sessionStore: createMemorySessionStore() });
+      try {
+        const initial = await request(baseUrl, '/api/status');
+        const cookie = firstCookie(initial.response);
+        const baseRevision = sessionRevision(initial.response);
+
+        const first = await request(baseUrl, '/api/kiro-crew/execute', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie },
+          body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+        });
+        assert.equal(first.body.orchestration.mutated, true);
+        assert.equal(sessionRevision(first.response), baseRevision + 1);
+
+        const repeat = await request(baseUrl, '/api/kiro-crew/execute', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie: firstCookie(first.response) },
+          body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+        });
+        assert.equal(repeat.body.orchestration.mutated, false);
+        assert.equal(repeat.body.orchestration.status, 'ALREADY_EXORCISED');
+        assert.equal(sessionRevision(repeat.response), baseRevision + 1, 'a no-op workflow must not bump the session revision');
+      } finally {
+        await stopServer(server);
+      }
+    });
+  });
+
+  await t.test('stale cookie replay on cleanup is rejected and does not commit', async () => {
+    await withBrowserSessionEnv(async () => {
+      const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret: crypto.randomBytes(48), sessionStore: createMemorySessionStore() });
+      try {
+        const initial = await request(baseUrl, '/api/status');
+        const staleCookie = firstCookie(initial.response);
+        const baseRevision = sessionRevision(initial.response);
+
+        const first = await request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie: staleCookie },
+          body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+        });
+        assert.equal(first.response.status, 200);
+
+        const replay = await request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie: staleCookie },
+          body: JSON.stringify({ resourceId: 'vol-084920491823abf10' })
+        });
+        assert.equal(replay.response.status, 409);
+        assert.ok(['STALE_SESSION_COOKIE', 'SESSION_CONFLICT'].includes(replay.body.code));
+        assert.equal(sessionRevision(replay.response), baseRevision + 1, 'the rejection must refresh to the committed revision');
+
+        const status = await request(baseUrl, '/api/status', { headers: { cookie: firstCookie(replay.response) } });
+        assert.equal(status.body.telemetry.activeZombieCount, 4);
+        assert.equal(status.body.telemetry.exorcisedCount, 1, 'the replayed cleanup must not commit');
+        assert.equal(status.body.telemetry.resources.find(resource => resource.id === 'vol-084920491823abf10').status, 'ORPHANED_GHOST');
+      } finally {
+        await stopServer(server);
+      }
+    });
+  });
+
+  await t.test('stale cookie replay on reset is rejected and does not reset', async () => {
+    await withBrowserSessionEnv(async () => {
+      const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret: crypto.randomBytes(48), sessionStore: createMemorySessionStore() });
+      try {
+        const initial = await request(baseUrl, '/api/status');
+        const staleCookie = firstCookie(initial.response);
+
+        const first = await request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie: staleCookie },
+          body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+        });
+        assert.equal(first.response.status, 200);
+
+        const replay = await request(baseUrl, '/api/reset', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie: staleCookie }, body: '{}'
+        });
+        assert.equal(replay.response.status, 409);
+        assert.ok(['STALE_SESSION_COOKIE', 'SESSION_CONFLICT'].includes(replay.body.code));
+
+        const status = await request(baseUrl, '/api/status', { headers: { cookie: firstCookie(replay.response) } });
+        assert.equal(status.body.telemetry.activeZombieCount, 4, 'the replayed reset must not clear the committed cleanup');
+        assert.equal(status.body.telemetry.exorcisedCount, 1);
+      } finally {
+        await stopServer(server);
+      }
+    });
+  });
+
+  await t.test('read-only resurrection is allowed with a stale cookie and refreshes it', async () => {
+    await withBrowserSessionEnv(async () => {
+      const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret: crypto.randomBytes(48), sessionStore: createMemorySessionStore() });
+      try {
+        const initial = await request(baseUrl, '/api/status');
+        const staleCookie = firstCookie(initial.response);
+        const baseRevision = sessionRevision(initial.response);
+
+        const first = await request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie: staleCookie },
+          body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+        });
+        assert.equal(first.response.status, 200);
+
+        const resurrect = await request(baseUrl, '/api/resurrect', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie: staleCookie },
+          body: JSON.stringify({ resourceId: 'arn:aws:lambda:us-east-1:718293019283:function:billing-webhook-v1' })
+        });
+        assert.equal(resurrect.response.status, 200, 'a read-only request must not be rejected merely because its cookie is stale');
+        assert.equal(resurrect.body.result.deploymentStatus, 'not-deployed');
+        assert.equal(sessionRevision(resurrect.response), baseRevision + 1, 'the stale cookie must be refreshed');
+      } finally {
+        await stopServer(server);
+      }
+    });
+  });
+
+  await t.test('concurrent mutations against the same revision commit exactly one (deterministic CAS)', async () => {
+    await withBrowserSessionEnv(async () => {
+      const store = createQueuedSessionStore();
+      const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret: crypto.randomBytes(48), sessionStore: store });
+      try {
+        const initial = await request(baseUrl, '/api/status');
+        const cookie = firstCookie(initial.response);
+        const baseRevision = sessionRevision(initial.response);
+
+        const firstCas = store.waitForCas();
+        const firstPromise = request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie },
+          body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+        });
+        await firstCas;
+
+        const secondCas = store.waitForCas();
+        const secondPromise = request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie },
+          body: JSON.stringify({ resourceId: 'vol-084920491823abf10' })
+        });
+        await secondCas;
+        assert.equal(store.casCount(), 2, 'both mutations must reach compare-and-swap before either commits');
+
+        store.releaseNext();
+        const first = await firstPromise;
+        store.releaseNext();
+        const second = await secondPromise;
+
+        assert.equal(first.response.status, 200);
+        assert.equal(sessionRevision(first.response), baseRevision + 1);
+        assert.equal(second.response.status, 409);
+        assert.equal(second.body.code, 'SESSION_CONFLICT');
+        assert.equal(sessionRevision(second.response), baseRevision + 1, 'the loser must receive the winner revision');
+
+        const status = await request(baseUrl, '/api/status', { headers: { cookie: firstCookie(second.response) } });
+        assert.equal(status.body.telemetry.exorcisedCount, 1);
+        assert.equal(status.body.telemetry.activeZombieCount, 4);
+      } finally {
+        await stopServer(server);
+      }
+    });
+  });
+
+  await t.test('a conflicting mutation is not retried automatically', async () => {
+    await withBrowserSessionEnv(async () => {
+      const store = createQueuedSessionStore();
+      const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret: crypto.randomBytes(48), sessionStore: store });
+      try {
+        const initial = await request(baseUrl, '/api/status');
+        const cookie = firstCookie(initial.response);
+
+        const firstCas = store.waitForCas();
+        const firstPromise = request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie },
+          body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+        });
+        await firstCas;
+
+        const secondCas = store.waitForCas();
+        const secondPromise = request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie },
+          body: JSON.stringify({ resourceId: 'vol-084920491823abf10' })
+        });
+        await secondCas;
+        assert.equal(store.casCalls(), 2, 'each mutation issues exactly one compare-and-swap');
+
+        store.releaseNext();
+        const first = await firstPromise;
+        store.releaseNext();
+        const second = await secondPromise;
+
+        assert.equal(first.response.status, 200);
+        assert.equal(second.response.status, 409);
+        assert.equal(store.casCalls(), 2, 'a rejected mutation must not be retried automatically');
+      } finally {
+        await stopServer(server);
+      }
+    });
+  });
+
+  await t.test('concurrent reset and cleanup commit exactly one transition in any order', async () => {
+    await withBrowserSessionEnv(async () => {
+      const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret: crypto.randomBytes(48), sessionStore: createMemorySessionStore() });
+      try {
+        // Establish one committed transition so that a reset is a real mutation.
+        const initial = await request(baseUrl, '/api/status');
+        let cookie = firstCookie(initial.response);
+        const prior = await request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie },
+          body: JSON.stringify({ resourceId: 'vol-084920491823abf10' })
+        });
+        assert.equal(prior.response.status, 200);
+        const preRevision = sessionRevision(prior.response);
+        cookie = firstCookie(prior.response);
+
+        const [reset, cleanup] = await Promise.all([
+          request(baseUrl, '/api/reset', { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}' }),
+          request(baseUrl, '/api/exorcise', {
+            method: 'POST', headers: { 'content-type': 'application/json', cookie },
+            body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+          })
+        ]);
+
+        assert.deepEqual([reset.response.status, cleanup.response.status].sort(), [200, 409], 'exactly one concurrent mutation may commit');
+        const resetCommitted = reset.response.status === 200;
+        const winner = resetCommitted ? reset : cleanup;
+        const loser = resetCommitted ? cleanup : reset;
+        assert.equal(sessionRevision(winner.response), preRevision + 1, 'exactly one revision is committed');
+        assert.equal(sessionRevision(loser.response), preRevision + 1, 'the loser is refreshed to the committed revision');
+
+        const status = await request(baseUrl, '/api/status', { headers: { cookie: firstCookie(winner.response) } });
+        // Both execution orders are valid and must leave a consistent, non-corrupt state.
+        if (resetCommitted) {
+          assert.equal(status.body.telemetry.activeZombieCount, 5, 'a committed reset restores all fixtures');
+          assert.equal(status.body.telemetry.exorcisedCount, 0);
+        } else {
+          assert.equal(status.body.telemetry.activeZombieCount, 3, 'a committed cleanup leaves the prior and new transitions');
+          assert.equal(status.body.telemetry.exorcisedCount, 2);
+        }
+        assert.equal(status.body.telemetry.hauntedRiskIndex >= 0, true);
+      } finally {
+        await stopServer(server);
+      }
+    });
+  });
+
+  await t.test('two concurrent cleanups of the same resource exorcise it exactly once', async () => {
+    await withBrowserSessionEnv(async () => {
+      const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret: crypto.randomBytes(48), sessionStore: createMemorySessionStore() });
+      try {
+        const initial = await request(baseUrl, '/api/status');
+        const cookie = firstCookie(initial.response);
+        const baseRevision = sessionRevision(initial.response);
+
+        const [a, b] = await Promise.all([
+          request(baseUrl, '/api/exorcise', {
+            method: 'POST', headers: { 'content-type': 'application/json', cookie },
+            body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+          }),
+          request(baseUrl, '/api/exorcise', {
+            method: 'POST', headers: { 'content-type': 'application/json', cookie },
+            body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+          })
+        ]);
+
+        // The second request may either lose the CAS (409) or observe the resource
+        // already cleaned and return an idempotent 200. Both orders are valid.
+        const statuses = [a.response.status, b.response.status].sort();
+        assert.equal(statuses[0], 200);
+        assert.ok([200, 409].includes(statuses[1]), `unexpected statuses ${statuses}`);
+
+        const status = await request(baseUrl, '/api/status', { headers: { cookie: firstCookie(a.response) } });
+        assert.equal(sessionRevision(status.response), baseRevision + 1, 'exactly one revision is committed');
+        assert.equal(status.body.telemetry.exorcisedCount, 1, 'the resource must be exorcised exactly once');
+        assert.equal(status.body.telemetry.activeZombieCount, 4);
+        assert.equal(status.body.telemetry.resources.find(resource => resource.id === 'i-0f948a913bc89a712').status, 'EXORCISED');
+      } finally {
+        await stopServer(server);
+      }
+    });
+  });
+
+  await t.test('cleanup after reset is applied and repeated cleanup is idempotent', async () => {
+    await withBrowserSessionEnv(async () => {
+      const { server, baseUrl } = await startBrowserSessionServer({ sessionSecret: crypto.randomBytes(48), sessionStore: createMemorySessionStore() });
+      try {
+        const initial = await request(baseUrl, '/api/status');
+        let cookie = firstCookie(initial.response);
+        const baseRevision = sessionRevision(initial.response);
+
+        const reset = await request(baseUrl, '/api/reset', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}'
+        });
+        assert.equal(reset.response.status, 200);
+        cookie = firstCookie(reset.response);
+        assert.equal(sessionRevision(reset.response), baseRevision, 'a no-op reset must not bump the revision');
+
+        const cleanup = await request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie },
+          body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+        });
+        assert.equal(cleanup.response.status, 200);
+        assert.equal(sessionRevision(cleanup.response), baseRevision + 1);
+        cookie = firstCookie(cleanup.response);
+
+        const repeat = await request(baseUrl, '/api/exorcise', {
+          method: 'POST', headers: { 'content-type': 'application/json', cookie },
+          body: JSON.stringify({ resourceId: 'i-0f948a913bc89a712' })
+        });
+        assert.equal(repeat.body.receipt.status, 'ALREADY_EXORCISED');
+        assert.equal(sessionRevision(repeat.response), baseRevision + 1, 'the repeat must not bump the revision');
+
+        const status = await request(baseUrl, '/api/status', { headers: { cookie: firstCookie(repeat.response) } });
+        assert.equal(status.body.telemetry.activeZombieCount, 4);
+        assert.equal(status.body.telemetry.exorcisedCount, 1);
+      } finally {
+        await stopServer(server);
+      }
+    });
+  });
+
+  await t.test('session store maps gateway conflicts and transport failures to safe statuses', async () => {
+    const secret = 'a'.repeat(96);
+    const makeStore = fetchImpl => createSupabaseSessionStore({
+      supabaseUrl: 'https://example.test', publishableKey: 'pk', gatewaySecret: secret, fetchImpl
+    });
+
+    const conflictStore = makeStore(async () => ({ ok: false, status: 409, text: async () => '' }));
+    await assert.rejects(() => conflictStore.getSession('session-id'), error => error.statusCode === 409 && error.code === 'SESSION_CONFLICT');
+
+    const unavailableStore = makeStore(async () => { throw new Error('network down'); });
+    await assert.rejects(() => unavailableStore.getSession('session-id'), error => error.statusCode === 503 && error.code === 'SESSION_STORE_UNAVAILABLE');
+
+    const serverErrorStore = makeStore(async () => ({ ok: false, status: 500, text: async () => '' }));
+    await assert.rejects(() => serverErrorStore.getSession('session-id'), error => error.statusCode === 503 && error.code === 'SESSION_STORE_UNAVAILABLE');
+
+    const happyStore = makeStore(async () => ({
+      ok: true, status: 200,
+      text: async () => JSON.stringify({ session_id: 'session-id', revision: 3, exorcised_fixture_ids: [], expires_at: new Date(0).toISOString() })
+    }));
+    const row = await happyStore.getSession('session-id');
+    assert.equal(row.revision, 3);
   });
 });
 

@@ -368,7 +368,7 @@ export class NecroOpsEngine {
       executionMode: 'local-demo-fixture',
       scannedAt: new Date().toISOString(),
       hauntedRiskIndex: score,
-      status: activeZombies === 0 ? 'SANCTIFIED_CLEAN' : (classifyFixtureRiskIndex(score) === 'SANCTIFIED_CLEAN' ? 'LOW_RISK_FIXTURES' : classifyFixtureRiskIndex(score)),
+      status: activeZombies === 0 ? 'SANCTIFIED_CLEAN' : (criticalCount > 0 && score < RISK_STATUS_THRESHOLDS.warning ? 'EERIE_WARNING' : (classifyFixtureRiskIndex(score) === 'SANCTIFIED_CLEAN' ? 'LOW_RISK_FIXTURES' : classifyFixtureRiskIndex(score))),
       totalMonthlyWasteUSD: Number(totalWaste.toFixed(2)),
       annualWasteProjectionUSD: Number((totalWaste * 12).toFixed(2)),
       activeZombieCount: activeZombies,
