@@ -104,7 +104,7 @@ function staticBoundaryScan() {
 
 function buildAuditRecord({ ciOutput, resetSmoke }) {
   const tapPass = (ciOutput.match(/# pass (\d+)/) || ciOutput.match(/ℹ pass (\d+)/))?.[1];
-  const namedNestedChecks = (ciOutput.match(/^  ✔ /gm) || []).length;
+  const namedNestedChecks = (ciOutput.match(/^    # Subtest: /gm) || ciOutput.match(/^  ✔ /gm) || []).length;
   const gateOutput = ciOutput.slice(ciOutput.lastIndexOf('> necro-ops@1.2.0 test:gate'));
   const gateMethod = gateOutput.match(/"verificationMethod": "([^"]+)"/)?.[1];
   const gateMinimum = Number(gateOutput.match(/"domainMinimumCents": (\d+)/)?.[1]);
@@ -117,7 +117,7 @@ function buildAuditRecord({ ciOutput, resetSmoke }) {
     && gateDomainValues === gateMaximum - gateMinimum + 1
     && gateRequested === gateDomainValues && gatePassedCount === gateDomainValues
     && /"passed": true/.test(gateOutput);
-  if (!tapPass || !gatePassed) fail('could not parse successful CI and exhaustive fixture-gate results');
+  if (!tapPass || !namedNestedChecks || !gatePassed) fail('could not parse successful CI, named nested test count, and exhaustive fixture-gate results');
   const inventory = sourceInventory();
   const boundary = staticBoundaryScan();
   const baseCommit = run('git', ['rev-parse', 'HEAD']).trim();
