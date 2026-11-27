@@ -243,6 +243,7 @@
         addFeed('SYS', 'Requesting reset of the local in-memory fixture scenario.');
         const response = await fetch('/api/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
         const data = await readJson(response); const reset = data.reset;
+        stateLoadFailed = false;
         renderTelemetry(reset.updatedScan);
         $('receiptBox').classList.remove('active'); $('receiptDetails').replaceChildren();
         renderModernizedExample(null);
