@@ -4,7 +4,7 @@
   "status": "CURRENT_FOR_THE_COMPLETE_VERSION_CONTROLLED_SOURCE_INVENTORY_LISTED_BELOW",
   "scope": "Complete version-controlled source inventory, deterministic local-fixture verification, four-band risk classification, exact-empty reset validation, fixed-lifetime signed browser sessions, Supabase gateway adapter behavior, database compare-and-swap session semantics verified with deterministic in-memory test doubles, dashboard/API boundary checks, concurrent mutation conflict handling, deployment configuration review, and truthful-claim review.",
   "executionBoundary": "All workload scans and cleanup transitions use local demo fixtures. Production browser-session persistence is implemented through the Supabase session gateway and atomic database compare-and-swap; automated tests exercise the server/store contract with deterministic in-memory test doubles and mocked gateway responses, not a live Supabase project. The audit did not verify live Supabase database state, connect to AWS, query CloudWatch or Cost Explorer, deploy a Lambda, execute Kiro Crew/CLI/Web, run a Kiro hook or power, or terminate an AWS resource.",
-  "generationBaseCommit": "964ccc1830b468dda2089aaaae09d52e94f42f21",
+  "generationBaseCommit": "b3b28cac7e279f4f24ab240c9b79aff4b11204c9",
   "auditedTreeIdentity": "The normalized SHA-256 inventory below identifies the complete audited working tree independently of a Git commit. generationBaseCommit records the checked-out generator context before the publication commit and is not a claim that it is the final public commit. The inventory includes every version-controlled/non-ignored project file except this audit artifact itself. The two visible digest-reference lines are normalized to a fixed token before hashing to avoid an unavoidable artifact-hash self-reference; npm run audit:verify checks both the inventory and the displayed artifact digest.",
   "sourceInventory": {
     "enumeration": "git ls-files --cached --others --exclude-standard, sorted",
@@ -22,7 +22,7 @@
     }
   },
   "sourceFileNormalizedSha256": {
-    ".github/workflows/test.yml": "f56bff9c7ca0740aee47ff8d7da0d82691e526efd5625cb156932f24183fc543",
+    ".github/workflows/test.yml": "8f9f9e84898bb0e694b26718b9936001e67655bffdafe63329255cfc291ba0dc",
     ".gitignore": "7b7668078fdfe2d790ccae2c33043027160ecdd60784094a2061a9cf4a92f977",
     ".kiro/agents/exorcist-agent.json": "58445d43bd5d2573911ea4c2191f30cb0c8cecacdd6c44930d67c50694a961d9",
     ".kiro/agents/necromancer-agent.json": "8f6a9845b62ff185ed314585263306c645438ffaf9ec325eb0cd41a0af00122d",
