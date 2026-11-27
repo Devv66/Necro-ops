@@ -91,6 +91,7 @@
     let telemetry = null;
     let workflowInFlight = false;
     let resetInFlight = false;
+    let stateLoadFailed = false;
     const $ = id => document.getElementById(id);
     const money = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
     const STATUS_COLORS = Object.freeze({
@@ -137,6 +138,11 @@
 
     function syncWorkflowButton(availableLabel = 'Run local fixture workflow') {
       const workflowButton = $('exorciseBtn');
+      if (stateLoadFailed) {
+        workflowButton.disabled = workflowInFlight || resetInFlight;
+        workflowButton.textContent = 'Retry loading local fixture scenario';
+        return;
+      }
       const hasSuggestedFixture = Boolean(telemetry?.suggestedCleanupFixtureId);
       workflowButton.disabled = !hasSuggestedFixture || workflowInFlight || resetInFlight;
       workflowButton.textContent = workflowInFlight ? 'Running local fixture workflow…' : (resetInFlight ? 'Reset in progress…' : (hasSuggestedFixture ? availableLabel : 'No active local fixtures remain'));
@@ -175,19 +181,34 @@
     }
 
     async function loadState() {
+      stateLoadFailed = false;
       $('uiError').textContent = '';
-      const response = await fetch('/api/status');
-      const data = await readJson(response);
-      renderTelemetry(data.telemetry);
-      syncWorkflowButton();
-      $('crewFeed').replaceChildren();
-      addFeed('SYS', 'Loaded ' + data.telemetry.activeZombieCount + ' local fixture resources. No AWS account is connected.');
-      addFeed('SYS', 'Suggested explicit fixture target: ' + (data.telemetry.suggestedCleanupFixtureId || 'none') + '.');
+      let loaded = false;
+      try {
+        const response = await fetch('/api/status');
+        const data = await readJson(response);
+        renderTelemetry(data.telemetry);
+        $('crewFeed').replaceChildren();
+        addFeed('SYS', 'Loaded ' + data.telemetry.activeZombieCount + ' local fixture resources. No AWS account is connected.');
+        addFeed('SYS', 'Suggested explicit fixture target: ' + (data.telemetry.suggestedCleanupFixtureId || 'none') + '.');
+        loaded = true;
+      } catch (error) {
+        stateLoadFailed = true;
+        $('uiError').textContent = error.message;
+        addFeed('ERROR', 'Could not load local simulator state: ' + error.message);
+      } finally {
+        syncWorkflowButton();
+      }
+      return loaded;
     }
 
     async function triggerWorkflow() {
       if (workflowInFlight || resetInFlight) return;
-      if (!telemetry || !telemetry.suggestedCleanupFixtureId) { $('uiError').textContent = 'No active local fixture is available to simulate. Use Reset Local Fixture Scenario to restore the demo.'; return; }
+      if (stateLoadFailed || !telemetry) {
+        await loadState();
+        return;
+      }
+      if (!telemetry.suggestedCleanupFixtureId) { $('uiError').textContent = 'No active local fixture is available to simulate. Use Reset Local Fixture Scenario to restore the demo.'; return; }
       workflowInFlight = true;
       const button = $('exorciseBtn'); button.disabled = true; button.textContent = 'Running local fixture workflow…';
       $('resetBtn').disabled = true; $('uiError').textContent = '';
@@ -222,6 +243,7 @@
         addFeed('SYS', 'Requesting reset of the local in-memory fixture scenario.');
         const response = await fetch('/api/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
         const data = await readJson(response); const reset = data.reset;
+        stateLoadFailed = false;
         renderTelemetry(reset.updatedScan);
         $('receiptBox').classList.remove('active'); $('receiptDetails').replaceChildren();
         renderModernizedExample(null);
@@ -239,7 +261,7 @@
 
     $('exorciseBtn').addEventListener('click', triggerWorkflow);
     $('resetBtn').addEventListener('click', resetLocalFixtureScenario);
-    loadState().catch(error => { $('uiError').textContent = error.message; addFeed('ERROR', 'Could not load local simulator state: ' + error.message); });
+    loadState();
   </script>
 </body>
 </html>

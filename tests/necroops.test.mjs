@@ -551,6 +551,10 @@ test('NecroOps local fixture suite', async (t) => {
     assert.match(dashboard, /Reset Local Fixture Scenario/);
     assert.doesNotMatch(dashboard, /setTimeout\(/);
     assert.match(dashboard, /NO AWS ACCOUNT CONNECTED/);
+    assert.match(dashboard, /let stateLoadFailed = false;/);
+    assert.match(dashboard, /async function loadState\(\)[\s\S]*?try \{[\s\S]*?finally \{[\s\S]*?syncWorkflowButton\(\);/);
+    assert.match(dashboard, /function syncWorkflowButton\([\s\S]*?if \(stateLoadFailed\)[\s\S]*?Retry loading local fixture scenario/);
+    assert.match(dashboard, /if \(stateLoadFailed \|\| !telemetry\) \{[\s\S]*?await loadState\(\);[\s\S]*?return;/);
     assert.match(dashboard, /for this browser demo session/);
     assert.match(dashboard, /const STATUS_COLORS = Object\.freeze/);
     for (const status of ['CRITICAL_HAUNTED', 'EERIE_WARNING', 'LOW_RISK_FIXTURES', 'SANCTIFIED_CLEAN']) {
@@ -562,7 +566,7 @@ test('NecroOps local fixture suite', async (t) => {
     assert.match(dashboard, /resetInFlight/);
     assert.match(dashboard, /\$\('crewFeed'\)\.replaceChildren\(\)/);
 
-    assert.match(dashboard, /renderTelemetry\(data\.telemetry\);\s+syncWorkflowButton\(\);/);
+    assert.match(dashboard, /renderTelemetry\(data\.telemetry\);/);
     assert.match(dashboard, /clearedTransitionCount/);
     assert.doesNotMatch(dashboard, /local receipt\(s\) cleared/);
     assert.match(dashboard, /main \{[^}]*min-width:0/);
