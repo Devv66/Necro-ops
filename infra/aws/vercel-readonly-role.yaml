@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Least-privilege, read-only inventory role for the NecroOps Vercel production
+  deployment. Trust is restricted to the exact Vercel team, project, and
+  production environment. No resource mutation permissions are granted.
+
+Resources:
+  NecroOpsVercelOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://oidc.vercel.com/itsok33220-9416s-projects
+      ClientIdList:
+        - https://vercel.com/itsok33220-9416s-projects
+
+  NecroOpsVercelReadOnlyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: NecroOpsVercelReadOnlyInventory
+      Description: Read-only EC2, S3 bucket metadata, CloudWatch metrics, Lambda inventory, and RDS inventory for NecroOps production on Vercel.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: TrustOnlyNecroOpsVercelProduction
+            Effect: Allow
+            Principal:
+              Federated: !Ref NecroOpsVercelOidcProvider
+            Action:
+              - sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                oidc.vercel.com/itsok33220-9416s-projects:aud: https://vercel.com/itsok33220-9416s-projects
+                oidc.vercel.com/itsok33220-9416s-projects:sub: owner:itsok33220-9416s-projects:project:necro-ops:environment:production
+      Policies:
+        - PolicyName: NecroOpsReadOnlyInventory
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadEc2Inventory
+                Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeSnapshots
+                  - ec2:DescribeRegions
+                  - ec2:DescribeInstanceStatus
+                  - ec2:DescribeTags
+                Resource: '*'
+              - Sid: ReadS3BucketMetadataOnly
+                Effect: Allow
+                Action:
+                  - s3:ListAllMyBuckets
+                  - s3:GetBucketLocation
+                  - s3:GetBucketTagging
+                  - s3:GetBucketVersioning
+                Resource: '*'
+              - Sid: ReadCloudWatchMetricsAndAlarms
+                Effect: Allow
+                Action:
+                  - cloudwatch:ListMetrics
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:DescribeAlarms
+                Resource: '*'
+              - Sid: ReadLambdaInventoryOnly
+                Effect: Allow
+                Action:
+                  - lambda:ListFunctions
+                  - lambda:ListTags
+                Resource: '*'
+              - Sid: ReadRdsInventory
+                Effect: Allow
+                Action:
+                  - rds:DescribeDBInstances
+                  - rds:DescribeDBClusters
+                  - rds:DescribeDBSnapshots
+                  - rds:ListTagsForResource
+                Resource: '*'
+
+Outputs:
+  NecroOpsAwsRoleArn:
+    Description: Set this value as AWS_ROLE_ARN in the NecroOps Vercel project after its AWS adapter is deployed.
+    Value: !GetAtt NecroOpsVercelReadOnlyRole.Arn
+  NecroOpsOidcProviderArn:
+    Description: Vercel team-scoped OIDC provider created for NecroOps.
+    Value: !Ref NecroOpsVercelOidcProvider
