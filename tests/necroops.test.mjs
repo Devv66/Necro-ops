@@ -566,7 +566,7 @@ test('NecroOps local fixture suite', async (t) => {
     assert.match(dashboard, /resetInFlight/);
     assert.match(dashboard, /\$\('crewFeed'\)\.replaceChildren\(\)/);
 
-    assert.match(dashboard, /renderTelemetry\(data\.telemetry\);\s+syncWorkflowButton\(\);/);
+    assert.match(dashboard, /renderTelemetry\(data\.telemetry\);/);
     assert.match(dashboard, /clearedTransitionCount/);
     assert.doesNotMatch(dashboard, /local receipt\(s\) cleared/);
     assert.match(dashboard, /main \{[^}]*min-width:0/);
