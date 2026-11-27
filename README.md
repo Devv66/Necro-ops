@@ -6,6 +6,13 @@
 [![Local fixture checks](https://img.shields.io/badge/checks-run%20npm%20run%20ci-5b21b6.svg)](tests/)
 [![License](https://img.shields.io/badge/license-MIT-success.svg)](LICENSE)
 
+## Competition history and showcase status
+
+- **Kiroween 2026 (Devpost):** Submitted; the project was originally created for this event.
+- **Additional showcases and competitions:** Not submitted yet. Any future entry will be listed here only after its rules, geographic eligibility, existing-project policy, and submission confirmation are independently verified.
+
+NecroOps is a pre-existing project. Reuse it only where the specific organizer's rules permit it, and disclose its original Kiroween 2026 submission. Disclosure does not override event eligibility or new-build requirements.
+
 ## Truthful scope
 
 NecroOps is a **local, in-memory prototype**. It does **not** connect to an AWS account, call AWS APIs, read CloudWatch or Cost Explorer, create or deploy Lambda functions, execute a Kiro Crew, or terminate real cloud resources.
