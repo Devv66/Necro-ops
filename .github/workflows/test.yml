@@ -5,7 +5,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 # Serialize pushes to main so audit publication does not race itself.
 concurrency:
@@ -32,6 +32,8 @@ jobs:
       - run: npm run audit:verify
 
   publish-audit:
+    permissions:
+      contents: write
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
