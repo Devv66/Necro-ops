@@ -15,7 +15,7 @@ NecroOps is a local fixture FinOps prototype. It does not connect to AWS or perf
 
 The source-controlled audit record is `docs/audit/necroops-fixture-mode-audit-log.json`. Its generator is `npm run audit:refresh`, and its integrity check is `npm run audit:verify`.
 
-**Complete audit artifact SHA-256:** `473c52da9fa461d5362e2f4c9d91783f8d71f12aba0654d37657fef249ff7bef`
+**Complete audit artifact SHA-256:** `578f17a32c6a92f5c1573cf9e5fbdcfcc2ec1e32a0a154d6bf4dd6405d5c9355`
 
 The digest is updated by the audit generator. Verify the published source revision with `npm run ci` and `npm run audit:verify`.
 
