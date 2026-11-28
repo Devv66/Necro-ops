@@ -4,7 +4,7 @@
   "status": "CURRENT_FOR_THE_COMPLETE_VERSION_CONTROLLED_SOURCE_INVENTORY_LISTED_BELOW",
   "scope": "Complete version-controlled source inventory, deterministic local-fixture verification, four-band risk classification, exact-empty reset validation, fixed-lifetime signed browser sessions, Supabase gateway adapter behavior, database compare-and-swap session semantics verified with deterministic in-memory test doubles, dashboard/API boundary checks, concurrent mutation conflict handling, deployment configuration review, and truthful-claim review.",
   "executionBoundary": "All workload scans and cleanup transitions use local demo fixtures. Production browser-session persistence is implemented through the Supabase session gateway and atomic database compare-and-swap; automated tests exercise the server/store contract with deterministic in-memory test doubles and mocked gateway responses, not a live Supabase project. The audit did not verify live Supabase database state, connect to AWS, query CloudWatch or Cost Explorer, deploy a Lambda, execute Kiro Crew/CLI/Web, run a Kiro hook or power, or terminate an AWS resource.",
-  "generationBaseCommit": "df5ae7d4c525a78bcb6db01e31539ffa72e1e0e2",
+  "generationBaseCommit": "e943f39e866600b5778ae9cb9121c659b605d74d",
   "auditedTreeIdentity": "The normalized SHA-256 inventory below identifies the complete audited working tree independently of a Git commit. generationBaseCommit records the checked-out generator context before the publication commit and is not a claim that it is the final public commit. The inventory includes every version-controlled/non-ignored project file except this audit artifact itself. The two visible digest-reference lines are normalized to a fixed token before hashing to avoid an unavoidable artifact-hash self-reference; npm run audit:verify checks both the inventory and the displayed artifact digest.",
   "sourceInventory": {
     "enumeration": "git ls-files --cached --others --exclude-standard, sorted",
@@ -41,7 +41,7 @@
     "docs/audit/necroops-audit-log.json": "8f7903da2286c8b8eac22642661a57f244c570ba6f374539d34fe442840a391b",
     "package-lock.json": "0c091c05aadeb3672645122cb492ff4d83dd850b63d25072ea3bf893dc405ee4",
     "package.json": "c3977fdb0445a1c9acf07cb616e6577a55a729d364933b61f871d85fb61216bc",
-    "public/index.html": "086507313c3ffe79452481a8d566b443be7690e155cb7dbae74692402584668d",
+    "public/index.html": "57711afd5beb10c72e5da960914fd9dbf4b23c5601f9c86d4077bbe45d3f6e18",
     "scripts/fixture-safety-gate.mjs": "9f0f828bbc54c248cd3369d187605b9d42d70431540874b691173f0eaf951f13",
     "scripts/regenerate-audit.mjs": "e98af91d8599e23b94fad79010f02bc7a2d050c92611534ba15139616daa73b3",
     "src/engine.js": "40692edc073f2b8e06fe6f3a29191e46aefa99e012886955f760e799fbdd9052",
