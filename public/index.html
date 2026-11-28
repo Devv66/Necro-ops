@@ -41,6 +41,14 @@
     .modernized pre { max-width:100%; overflow:auto; padding:12px; border:1px solid #2a354b; border-radius:7px; background:#080b13; color:#dbeafe; font:12px/1.55 var(--mono); white-space:pre; }
     .error { margin-top:12px; color:#ff8cab; font-size:12px; min-height:18px; } .footer-note { max-width:1220px; margin:0 auto 28px; color:#a1afc3; padding:0 2px; font-size:12px; line-height:1.65; }
 
+
+    .aws-access { max-width:1220px; margin:14px auto 0; padding:16px 18px; border:1px solid #34445c; border-radius:10px; background:linear-gradient(110deg,#101a29,#111827); display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+    .aws-access h2 { margin:0 0 5px; font-size:15px; }
+    .aws-access p { margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
+    .aws-access .aws-state { color:#ffdc8c; font-weight:800; }
+    .aws-access a { display:inline-block; padding:10px 14px; border-radius:8px; border:1px solid #b77b27; background:#251a0a; color:#ffdc8c; font-size:12px; font-weight:800; text-decoration:none; white-space:nowrap; }
+    .aws-access a:hover { filter:brightness(1.12); }
+    @media(max-width:850px) { .aws-access { margin-left:16px; margin-right:16px; } }
     button:focus-visible, a:focus-visible { outline:2px solid var(--cyan); outline-offset:3px; }
     button.secondary { box-shadow:none; }
     .resource:hover { border-color:#3a4a65; }
@@ -56,6 +64,10 @@
   </header>
 
   <div class="notice">LOCAL DEMO FIXTURES — NO AWS ACCOUNT CONNECTED. All resource identifiers, costs, risk values, workflow events, receipts, and state changes shown here come from an in-memory scenario.</div>
+  <div class="aws-access" aria-label="AWS console access">
+    <div><h2>AWS Console Access</h2><p><span class="aws-state">Not connected.</span> Console shortcut only; no AWS API calls, credentials, or cloud resources are used by this prototype.</p></div>
+    <a href="https://console.aws.amazon.com/" target="_blank" rel="noopener noreferrer">Open AWS Console ↗</a>
+  </div>
 
   <main>
     <section class="card">
